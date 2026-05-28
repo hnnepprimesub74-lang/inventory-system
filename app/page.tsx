@@ -1010,21 +1010,13 @@ export default function Home() {
                   result
                 ) => {
 
-                  if (
-                    result?.text
-                  ) {
+                  if ((result as any)?.text) {
 
-                    const code =
-                      result.text
+                    const code = (result as any).text
 
-                    setScanBarcode(
-                      code
-                    )
+                    setScanBarcode(code)
 
-                    await handleBarcodeScan(
-                      code
-                    )
-
+                    await handleBarcodeScan(code)
                   }
 
                 }}
