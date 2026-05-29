@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '../lib/supabase'
-import { Html5QrcodeScanner } from "html5-qrcode"
+import { Html5Qrcode } from "html5-qrcode"
 import * as XLSX from 'xlsx'
 import { saveAs } from 'file-saver'
 
@@ -12,6 +12,10 @@ export default function Home() {
   const router = useRouter()
 
   const scannerInitialized = useRef(false)
+
+  const scannerRef = useRef<Html5Qrcode | null>(null)
+
+
 
   const scanInputRef =
     useRef<any>(null)
@@ -162,48 +166,65 @@ export default function Home() {
   useEffect(() => {
 
     if (!showCamera) {
+
+      if (scannerRef.current) {
+
+        scannerRef.current.stop()
+          .then(() => {
+            scannerRef.current = null
+          })
+          .catch(console.error)
+
+      }
+
       return
     }
 
-    if (scannerInitialized.current) {
-      return
-    }
-
-    scannerInitialized.current = true
+    if (scannerRef.current) return
 
     const scanner =
-      new Html5QrcodeScanner(
-        "reader",
-        {
-          fps: 10,
-          qrbox: 250,
-          rememberLastUsedCamera: false,
-          supportedScanTypes: []
-        },
-        false
-      )
+      new Html5Qrcode("reader")
 
-    scanner.render(
+    scannerRef.current = scanner
+
+    scanner.start(
+      {
+        facingMode: "environment"
+      },
+      {
+        fps: 10,
+        qrbox: 250
+      },
       async (decodedText) => {
 
         setScanBarcode(decodedText)
 
         await handleBarcodeScan(decodedText)
 
-      },
-      () => { }
-    )
+      }
+    ).catch(console.error)
 
     return () => {
-      scannerInitialized.current = false
 
-      try {
-        scanner.clear()
-      } catch (e) {
-        console.log(e)
+      if (scannerRef.current) {
+
+        scannerRef.current.stop()
+          .then(() => {
+
+            scannerRef.current?.clear()
+
+            scannerRef.current = null
+
+          })
+          .catch(console.error)
+
       }
+
     }
+
   }, [showCamera])
+
+
 
 
 
@@ -1047,13 +1068,8 @@ export default function Home() {
 
           {showCamera && (
 
-            <div className="mt-6 overflow-hidden rounded-3xl border-4 border-black bg-black">
-              <div
-                id="reader"
-                className="w-full"
-              />
-
-
+            <div className="mt-6 overflow-hidden rounded-3xl border-4 border-black bg-black p-2">
+              <div id="reader"></div>
             </div>
 
           )}
