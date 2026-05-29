@@ -204,7 +204,8 @@ export default function Home() {
       async (decodedText) => {
         setScanBarcode(decodedText)
         await handleBarcodeScan(decodedText)
-      }
+      },
+      () => { }
     )
       .then(() => {
         scannerStartingRef.current = false
