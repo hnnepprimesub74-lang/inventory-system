@@ -934,6 +934,10 @@ export default function Home() {
               const value =
                 e.target.value
 
+              console.log("INPUT:", value)
+
+
+
               setScanBarcode(
                 value
               )
@@ -953,11 +957,7 @@ export default function Home() {
                 mode === 'ADD'
               ) {
 
-                setScanBarcode(
-                  value
-                )
-
-
+                setScanBarcode(value)
 
                 return
 
@@ -1084,6 +1084,8 @@ export default function Home() {
 
                   return
 
+
+
                 }
 
                 /* EXISTING PRODUCT */
@@ -1101,6 +1103,49 @@ export default function Home() {
 
             className="w-full border-2 border-black rounded-2xl px-5 py-5 text-2xl"
           />
+
+          {
+            mode === 'ADD' &&
+            scanBarcode &&
+            !products.find(
+              p => p.barcode === scanBarcode
+            ) && (
+
+              <button
+                onClick={() => {
+
+                  setScannedBarcode(
+                    scanBarcode
+                  )
+
+                  setIsNewProduct(
+                    true
+                  )
+
+                  setShowAddStockModal(
+                    true
+                  )
+
+                }}
+                className="
+        mt-3
+        w-full
+        bg-yellow-500
+        hover:bg-yellow-600
+        text-black
+        font-bold
+        py-4
+        rounded-2xl
+      "
+              >
+                Add New Product
+              </button>
+
+            )
+          }
+
+
+
 
           {showCamera && (
 
