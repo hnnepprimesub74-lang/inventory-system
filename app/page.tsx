@@ -533,8 +533,12 @@ export default function Home() {
     setWeight('')
     setImageUrl('')
 
-    await fetchProducts()
-    await fetchTopSellingProducts()
+    const productsData =
+      await fetchProducts()
+
+    await fetchTopSellingProducts(
+      productsData
+    )
 
   }
 
