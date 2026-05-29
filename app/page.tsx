@@ -3,13 +3,15 @@
 import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '../lib/supabase'
-import BarcodeScanner from 'react-qr-barcode-scanner'
+import { Html5QrcodeScanner } from "html5-qrcode"
 import * as XLSX from 'xlsx'
 import { saveAs } from 'file-saver'
 
 export default function Home() {
 
   const router = useRouter()
+
+  const scannerInitialized = useRef(false)
 
   const scanInputRef =
     useRef<any>(null)
@@ -156,6 +158,49 @@ export default function Home() {
     fetchProducts()
 
   }, [])
+
+  useEffect(() => {
+
+    if (!showCamera) {
+      scannerInitialized.current = false
+      return
+    }
+
+    if (scannerInitialized.current) {
+      return
+    }
+
+    scannerInitialized.current = true
+
+    const scanner =
+      new Html5QrcodeScanner(
+        "reader",
+        {
+          fps: 10,
+          qrbox: 250,
+          rememberLastUsedCamera: true,
+        },
+        false
+      )
+
+    scanner.render(
+      async (decodedText) => {
+
+        setScanBarcode(decodedText)
+
+        await handleBarcodeScan(decodedText)
+
+      },
+      () => { }
+    )
+
+    return () => {
+      scanner.clear().catch(() => { })
+    }
+
+  }, [showCamera])
+
+
 
   async function checkUser() {
 
@@ -675,25 +720,25 @@ export default function Home() {
 
             </h1>
 
-            <p className="mt-3 text-xl">
 
-              <div className="mt-3 space-y-1">
 
-                <p className="text-xl text-zinc-600">
+            <div className="mt-3 space-y-1">
 
-                  Professional Inventory System
+              <p className="text-xl text-zinc-600">
 
-                </p>
+                Professional Inventory System
 
-                <p className="text-sm text-zinc-500 font-medium">
+              </p>
 
-                  Developed by Kumar Shah
+              <p className="text-sm text-zinc-500 font-medium">
 
-                </p>
+                Developed by Kumar Shah
 
-              </div>
+              </p>
 
-            </p>
+            </div>
+
+
 
           </div>
 
@@ -998,29 +1043,11 @@ export default function Home() {
           {showCamera && (
 
             <div className="mt-6 overflow-hidden rounded-3xl border-4 border-black bg-black">
-
-              <BarcodeScanner
-                width={500}
-                height={500}
-                facingMode="environment"
-                delay={50}
-                stopStream={false}
-                onUpdate={async (
-                  err,
-                  result
-                ) => {
-
-                  if ((result as any)?.text) {
-
-                    const code = (result as any).text
-
-                    setScanBarcode(code)
-
-                    await handleBarcodeScan(code)
-                  }
-
-                }}
+              <div
+                id="reader"
+                className="w-full"
               />
+
 
             </div>
 
