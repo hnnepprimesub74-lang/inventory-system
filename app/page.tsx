@@ -11,14 +11,13 @@ export default function Home() {
 
   const router = useRouter()
 
-  const scannerInitialized = useRef(false)
-
   const scannerRef = useRef<Html5Qrcode | null>(null)
 
+  const scannerStartingRef = useRef(false)
+
+  const scanInputRef = useRef<any>(null)
 
 
-  const scanInputRef =
-    useRef<any>(null)
 
   const [products, setProducts] =
     useState<any[]>([])
@@ -180,7 +179,14 @@ export default function Home() {
       return
     }
 
-    if (scannerRef.current) return
+    if (
+      scannerRef.current ||
+      scannerStartingRef.current
+    ) {
+      return
+    }
+
+    scannerStartingRef.current = true
 
     const scanner =
       new Html5Qrcode("reader")
@@ -196,27 +202,26 @@ export default function Home() {
         qrbox: 250
       },
       async (decodedText) => {
-
         setScanBarcode(decodedText)
-
         await handleBarcodeScan(decodedText)
-
       }
-    ).catch(console.error)
+    )
+      .then(() => {
+        scannerStartingRef.current = false
+      })
+      .catch((err) => {
+        scannerStartingRef.current = false
+        console.error(err)
+      })
 
     return () => {
 
       if (scannerRef.current) {
 
         scannerRef.current.stop()
-          .then(() => {
+          .catch(() => { })
 
-            scannerRef.current?.clear()
-
-            scannerRef.current = null
-
-          })
-          .catch(console.error)
+        scannerRef.current = null
 
       }
 
