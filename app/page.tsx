@@ -17,6 +17,10 @@ export default function Home() {
 
   const scanInputRef = useRef<any>(null)
 
+  const lastScannedRef = useRef('')
+
+  const lastScanTimeRef = useRef(0)
+
 
 
   const [products, setProducts] =
@@ -25,6 +29,10 @@ export default function Home() {
   const [userEmail,
     setUserEmail] =
     useState('')
+
+  const [message, setMessage] = useState('')
+
+
 
   const [barcode, setBarcode] =
     useState('')
@@ -231,8 +239,23 @@ export default function Home() {
           qrbox: 300
         },
         async (decodedText) => {
+
+          const now = Date.now()
+
+          if (
+            lastScannedRef.current === decodedText &&
+            now - lastScanTimeRef.current < 5000
+          ) {
+            return
+          }
+
+          lastScannedRef.current = decodedText
+          lastScanTimeRef.current = now
+
           setScanBarcode(decodedText)
+
           await handleBarcodeScan(decodedText)
+
         },
         () => { }
       )
@@ -543,9 +566,15 @@ export default function Home() {
 
       fetchProducts()
 
-      alert(
+      setMessage(
         `${product.product_name} sold`
       )
+
+      setTimeout(() => {
+        setMessage('')
+      }, 1000)
+
+
 
       return
 
@@ -922,6 +951,16 @@ export default function Home() {
 
 
           </div>
+
+          {message && (
+            <div className="mb-3 bg-green-600 text-white text-center font-bold py-3 rounded-xl">
+              {message}
+            </div>
+          )}
+
+
+
+
 
           <input
             ref={scanInputRef}
