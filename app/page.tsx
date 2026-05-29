@@ -198,8 +198,8 @@ export default function Home() {
         facingMode: "environment"
       },
       {
-        fps: 10,
-        qrbox: 250
+        fps: 20,
+        qrbox: 300
       },
       async (decodedText) => {
         setScanBarcode(decodedText)
