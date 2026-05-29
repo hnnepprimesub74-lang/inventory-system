@@ -263,7 +263,8 @@ export default function Home() {
         cameraToUse,
         {
           fps: 20,
-          qrbox: 300
+          qrbox: 450,
+          aspectRatio: 1.0
         },
         async (decodedText) => {
 
@@ -1327,7 +1328,10 @@ export default function Home() {
 
 
             <div className="mt-6 overflow-hidden rounded-3xl border-4 border-black bg-black p-2">
-              <div id="reader"></div>
+              <div
+                id="reader"
+                className="w-full min-h-[550px]"
+              ></div>
             </div>
 
           )}
