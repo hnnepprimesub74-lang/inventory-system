@@ -23,6 +23,11 @@ export default function Home() {
 
 
 
+  const [deleteProductId,
+    setDeleteProductId] =
+    useState<any>(null)
+
+
   const [products, setProducts] =
     useState<any[]>([])
 
@@ -636,8 +641,6 @@ export default function Home() {
     id: any
   ) {
 
-
-
     await supabase
       .from(
         'stock_transactions'
@@ -1068,6 +1071,10 @@ export default function Home() {
                 return
 
               }
+
+
+
+
 
               /* ADD STOCK EXISTING */
 
@@ -1888,19 +1895,23 @@ export default function Home() {
 
                         </button>
 
+                        
+
+                      </td>
+
+                      <td>
+
                         <button
                           onClick={() =>
-                            setDeleteId(
-                              product.id
-                            )
+                            setDeleteProductId(product.id)
                           }
-                          className="bg-red-600 text-white px-4 py-2 rounded-xl font-bold ml-2"
+
+                          className="bg-red-600 text-white px-4 py-2 rounded-xl font-bold"
+
+
                         >
-
                           Delete
-
                         </button>
-
                       </td>
 
 
@@ -2101,6 +2112,55 @@ export default function Home() {
         )}
 
       </div>
+
+
+      {deleteProductId && (
+
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+
+          <div className="bg-white rounded-3xl p-6 w-80 shadow-2xl">
+
+            <h2 className="text-2xl font-bold text-center">
+              Delete Product?
+            </h2>
+
+            <p className="text-center text-gray-500 mt-3">
+              This action cannot be undone.
+            </p>
+
+            <div className="flex gap-3 mt-6">
+
+              <button
+                onClick={() =>
+                  setDeleteProductId(null)
+                }
+                className="flex-1 bg-gray-300 hover:bg-gray-400 py-3 rounded-xl font-bold"
+              >
+                Cancel
+              </button>
+
+              <button
+                onClick={async () => {
+
+                  await deleteProduct(
+                    deleteProductId
+                  )
+
+                  setDeleteProductId(null)
+
+                }}
+                className="flex-1 bg-red-600 hover:bg-red-700 text-white py-3 rounded-xl font-bold"
+              >
+                Delete
+              </button>
+
+            </div>
+
+          </div>
+
+        </div>
+
+      )}
 
 
       {showAddStockModal && (
