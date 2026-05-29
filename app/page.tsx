@@ -200,7 +200,7 @@ export default function Home() {
       console.log("Cameras:", cameras)
 
       await scanner.start(
-        cameras[0].id,
+        cameras[2].id,
         {
           fps: 20,
           qrbox: 300
