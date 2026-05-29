@@ -1138,6 +1138,30 @@ export default function Home() {
                     product.id
                   )
 
+                const { error } = await supabase
+                  .from('stock_transactions')
+                  .insert([
+                    {
+                      product_id: product.id,
+                      user_email: userEmail,
+                      transaction_type: 'SELL',
+                      quantity: 1,
+                    },
+                  ])
+
+                if (error) {
+
+                  alert(error.message)
+
+                  console.log(error)
+
+                }
+
+
+
+
+
+
                 fetchProducts()
 
                 setScanBarcode('')
