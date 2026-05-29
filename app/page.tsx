@@ -193,27 +193,32 @@ export default function Home() {
 
     scannerRef.current = scanner
 
-    scanner.start(
-      {
-        facingMode: "environment"
-      },
-      {
-        fps: 20,
-        qrbox: 300
-      },
-      async (decodedText) => {
-        setScanBarcode(decodedText)
-        await handleBarcodeScan(decodedText)
-      },
-      () => { }
-    )
-      .then(() => {
-        scannerStartingRef.current = false
-      })
-      .catch((err) => {
-        scannerStartingRef.current = false
-        console.error(err)
-      })
+    const startScanner = async () => {
+
+      const cameras = await Html5Qrcode.getCameras()
+
+      console.log("Cameras:", cameras)
+
+      await scanner.start(
+        cameras[0].id,
+        {
+          fps: 20,
+          qrbox: 300
+        },
+        async (decodedText) => {
+          setScanBarcode(decodedText)
+          await handleBarcodeScan(decodedText)
+        },
+        () => { }
+      )
+
+      scannerStartingRef.current = false
+    }
+
+    startScanner().catch((err) => {
+      scannerStartingRef.current = false
+      console.error(err)
+    })
 
     return () => {
 
