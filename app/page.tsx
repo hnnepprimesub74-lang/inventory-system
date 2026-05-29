@@ -162,7 +162,6 @@ export default function Home() {
   useEffect(() => {
 
     if (!showCamera) {
-      scannerInitialized.current = false
       return
     }
 
@@ -195,9 +194,8 @@ export default function Home() {
     )
 
     return () => {
-      scanner.clear().catch(() => { })
+      scannerInitialized.current = false
     }
-
   }, [showCamera])
 
 
