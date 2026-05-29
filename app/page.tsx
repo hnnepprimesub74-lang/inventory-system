@@ -21,6 +21,14 @@ export default function Home() {
 
   const lastScanTimeRef = useRef(0)
 
+  const lastScanRef = useRef({
+    barcode: '',
+    time: 0
+  })
+
+
+
+
 
 
   const [deleteProductId,
@@ -30,6 +38,12 @@ export default function Home() {
 
   const [products, setProducts] =
     useState<any[]>([])
+
+
+
+
+
+
 
   const [userEmail,
     setUserEmail] =
@@ -172,17 +186,25 @@ export default function Home() {
 
   const [selectedProduct,
     setSelectedProduct] =
+
     useState<any>(null)
-
-
-
-
-
 
   useEffect(() => {
 
-    checkUser()
-    fetchProducts()
+    async function loadData() {
+
+      checkUser()
+
+      const productsData =
+        await fetchProducts()
+
+      await fetchTopSellingProducts(
+        productsData
+      )
+
+    }
+
+    loadData()
 
   }, [])
 
@@ -311,6 +333,14 @@ export default function Home() {
 
   }
 
+
+  const [
+    topSellingProducts,
+    setTopSellingProducts
+  ] = useState<any[]>([])
+
+
+
   async function fetchProducts() {
 
     const { data } =
@@ -328,7 +358,82 @@ export default function Home() {
 
       setProducts(data)
 
+      return data
+
     }
+
+    return []
+
+  }
+
+  async function fetchTopSellingProducts(
+    productsData: any[]
+  ) {
+
+    const thirtyDaysAgo =
+      new Date()
+
+    thirtyDaysAgo.setDate(
+      thirtyDaysAgo.getDate() - 30
+    )
+
+    const { data } =
+      await supabase
+        .from('stock_transactions')
+        .select('*')
+        .eq(
+          'transaction_type',
+          'SELL'
+        )
+        .gte(
+          'created_at',
+          thirtyDaysAgo.toISOString()
+        )
+
+    if (!data) return
+
+    const salesMap: any = {}
+
+    data.forEach((sale) => {
+
+      if (
+        !salesMap[
+        sale.product_id
+        ]
+      ) {
+
+        salesMap[
+          sale.product_id
+        ] = 0
+
+      }
+
+      salesMap[
+        sale.product_id
+      ] += sale.quantity
+
+    })
+
+    const rankedProducts =
+      [...productsData]
+        .map(product => ({
+
+          ...product,
+
+          sold:
+            salesMap[
+            product.id
+            ] || 0
+
+        }))
+        .sort(
+          (a, b) =>
+            b.sold - a.sold
+        )
+
+    setTopSellingProducts(
+      rankedProducts
+    )
 
   }
 
@@ -428,7 +533,8 @@ export default function Home() {
     setWeight('')
     setImageUrl('')
 
-    fetchProducts()
+    await fetchProducts()
+    await fetchTopSellingProducts()
 
   }
 
@@ -553,16 +659,15 @@ export default function Home() {
         )
 
       await supabase
-        .from(
-          'stock_transactions'
-        )
+        .from('stock_transactions')
         .insert([
           {
 
-            product_id:
-              product.id,
+            product_id: product.id,
 
-            type: 'SALE',
+            user_email: userEmail,
+
+            transaction_type: 'SELL',
 
             quantity: 1,
 
@@ -788,13 +893,7 @@ export default function Home() {
         p.current_stock <= 5
     )
 
-  const topSellingProducts =
-    [...products]
-      .sort(
-        (a, b) =>
-          a.current_stock -
-          b.current_stock
-      )
+
 
   return (
 
@@ -1895,7 +1994,7 @@ export default function Home() {
 
                         </button>
 
-                        
+
 
                       </td>
 
