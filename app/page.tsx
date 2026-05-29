@@ -62,6 +62,17 @@ export default function Home() {
     setShowCamera] =
     useState(false)
 
+  const [availableCameras,
+    setAvailableCameras] =
+    useState<any[]>([])
+
+  const [selectedCamera,
+    setSelectedCamera] =
+    useState("")
+
+
+
+
   const [showAllTopSelling,
     setShowAllTopSelling] =
     useState(false)
@@ -197,10 +208,24 @@ export default function Home() {
 
       const cameras = await Html5Qrcode.getCameras()
 
+      setAvailableCameras(cameras)
+
+      const savedCamera =
+        localStorage.getItem(
+          "selectedCamera"
+        )
+
+      const cameraToUse =
+        savedCamera ||
+        cameras[0]?.id
+
+      setSelectedCamera(
+        cameraToUse
+      )
       console.log("Cameras:", cameras)
 
       await scanner.start(
-        cameras[2].id,
+        cameraToUse,
         {
           fps: 20,
           qrbox: 300
@@ -1079,11 +1104,59 @@ export default function Home() {
 
           {showCamera && (
 
+
+
+
+
             <div className="mt-6 overflow-hidden rounded-3xl border-4 border-black bg-black p-2">
               <div id="reader"></div>
             </div>
 
           )}
+
+          <div className="mb-4">
+
+            <select
+              value={selectedCamera}
+              onChange={(e) => {
+
+                const cameraId =
+                  e.target.value
+
+                setSelectedCamera(
+                  cameraId
+                )
+
+                localStorage.setItem(
+                  "selectedCamera",
+                  cameraId
+                )
+
+                window.location.reload()
+
+              }}
+
+              className="w-full bg-yellow-400 border-4 border-yellow-600 rounded-2xl px-5 py-4 text-black font-bold text-lg"
+            >
+
+              {availableCameras.map(
+                (camera) => (
+
+                  <option
+                    key={camera.id}
+                    value={camera.id}
+                  >
+
+                    {camera.label}
+
+                  </option>
+
+                )
+              )}
+
+            </select>
+
+          </div>
 
 
 
