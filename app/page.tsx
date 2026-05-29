@@ -177,7 +177,8 @@ export default function Home() {
         {
           fps: 10,
           qrbox: 250,
-          rememberLastUsedCamera: true,
+          rememberLastUsedCamera: false,
+          supportedScanTypes: []
         },
         false
       )
@@ -195,6 +196,12 @@ export default function Home() {
 
     return () => {
       scannerInitialized.current = false
+
+      try {
+        scanner.clear()
+      } catch (e) {
+        console.log(e)
+      }
     }
   }, [showCamera])
 
