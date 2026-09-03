@@ -13,6 +13,10 @@ import { saveAs } from 'file-saver'
 const SALES_WINDOW_DAYS = 7   // lookback window used to size the reorder point
 const MIN_FLOOR = 2           // minimum reorder point even for zero-sales items
 
+function todayISO() {
+  return new Date().toISOString().slice(0, 10)
+}
+
 export default function Home() {
 
   const router = useRouter()
@@ -26,11 +30,6 @@ export default function Home() {
   const lastScannedRef = useRef('')
 
   const lastScanTimeRef = useRef(0)
-
-  const lastScanRef = useRef({
-    barcode: '',
-    time: 0
-  })
 
   const [deleteProductId,
     setDeleteProductId] =
@@ -62,6 +61,10 @@ export default function Home() {
 
   const [costPrice,
     setCostPrice] =
+    useState('')
+
+  const [mrp,
+    setMrp] =
     useState('')
 
   const [stock, setStock] =
@@ -109,10 +112,6 @@ export default function Home() {
     setEditingProduct] =
     useState<any>(null)
 
-  const [deleteId,
-    setDeleteId] =
-    useState<any>(null)
-
   const [editName,
     setEditName] =
     useState('')
@@ -127,6 +126,10 @@ export default function Home() {
 
   const [editCost,
     setEditCost] =
+    useState('')
+
+  const [editMrp,
+    setEditMrp] =
     useState('')
 
   const [editStock,
@@ -161,30 +164,55 @@ export default function Home() {
     setWeight] =
     useState('')
 
-  const [showAddStockModal,
-    setShowAddStockModal] =
-    useState(false)
-
-  const [isNewProduct,
-    setIsNewProduct] =
-    useState(false)
-
-  const [scannedBarcode,
-    setScannedBarcode] =
-    useState('')
-
-  const [stockQty,
-    setStockQty] =
-    useState('')
-
-  const [stockRate,
-    setStockRate] =
-    useState('')
-
   const [selectedProduct,
     setSelectedProduct] =
-
     useState<any>(null)
+
+  // ---- Adjust Stock (sets exact stock, does not add) ----
+  const [showAdjustStockModal,
+    setShowAdjustStockModal] =
+    useState(false)
+
+  const [adjustStockQty,
+    setAdjustStockQty] =
+    useState('')
+
+  const [adjustCostPrice,
+    setAdjustCostPrice] =
+    useState('')
+
+  // ---- Stock-in session (Start -> scan repeatedly -> Done) ----
+  const [stockSessionActive,
+    setStockSessionActive] =
+    useState(false)
+
+  const [showSessionStartForm,
+    setShowSessionStartForm] =
+    useState(false)
+
+  const [sessionSeller,
+    setSessionSeller] =
+    useState('')
+
+  const [sessionDate,
+    setSessionDate] =
+    useState(todayISO())
+
+  const [sessionLotId,
+    setSessionLotId] =
+    useState('')
+
+  const [sessionItems,
+    setSessionItems] =
+    useState<any[]>([])
+
+  const [sessionNewProduct,
+    setSessionNewProduct] =
+    useState<any>(null)
+
+  const [stockInHistory,
+    setStockInHistory] =
+    useState<any[]>([])
 
   useEffect(() => {
 
@@ -198,6 +226,8 @@ export default function Home() {
       await fetchTopSellingProducts(
         productsData
       )
+
+      await fetchStockInHistory()
 
     }
 
@@ -254,7 +284,6 @@ export default function Home() {
       setSelectedCamera(
         cameraToUse
       )
-      console.log("Cameras:", cameras)
 
       await scanner.start(
         cameraToUse,
@@ -383,8 +412,6 @@ export default function Home() {
 
     if (!data) return
 
-    // Sales window used specifically for the reorder point
-    // (separate from the 30-day window used for the Top Selling ranking)
     const salesWindowAgo = new Date()
 
     salesWindowAgo.setDate(
@@ -482,6 +509,31 @@ export default function Home() {
 
   }
 
+  async function fetchStockInHistory() {
+
+    const { data } =
+      await supabase
+        .from('stock_transactions')
+        .select('*')
+        .eq(
+          'transaction_type',
+          'ADD'
+        )
+        .order(
+          'stock_date',
+          {
+            ascending: false,
+          }
+        )
+
+    if (data) {
+
+      setStockInHistory(data)
+
+    }
+
+  }
+
   async function uploadImage(
     file: any
   ) {
@@ -549,6 +601,9 @@ export default function Home() {
             cost_price:
               Number(costPrice),
 
+            mrp:
+              mrp ? Number(mrp) : null,
+
             current_stock:
               Number(stock),
 
@@ -575,6 +630,7 @@ export default function Home() {
     setCategory('')
     setBrand('')
     setCostPrice('')
+    setMrp('')
     setStock('')
     setShade('')
     setWeight('')
@@ -605,65 +661,334 @@ export default function Home() {
 
   }
 
-  async function handleBarcodeScan(
-    code: string
-  ) {
+  // ---- Stock session helpers ----
 
-    const { data } =
-      await supabase
-        .from('products')
-        .select('*')
-        .eq(
-          'barcode',
-          code
-        )
-        .single()
+  function addOrIncrementSessionItem(product: any) {
 
-    if (!data) {
+    setSessionItems((prev) => {
+
+      const idx = prev.findIndex(
+        (i) => i.productId === product.id
+      )
+
+      if (idx >= 0) {
+
+        const updated = [...prev]
+
+        updated[idx] = {
+          ...updated[idx],
+          qty: Number(updated[idx].qty) + 1,
+        }
+
+        return updated
+
+      }
+
+      return [
+        ...prev,
+        {
+          productId: product.id,
+          barcode: product.barcode,
+          name: product.product_name,
+          image: product.image_url,
+          category: product.category,
+          brand: product.brand,
+          shade: product.shade,
+          qty: 1,
+          costPrice: product.cost_price,
+        },
+      ]
+
+    })
+
+  }
+
+  function beginScanning() {
+
+    if (!sessionSeller) {
+
+      alert('Enter a seller / supplier name first')
 
       return
 
     }
 
+    setSessionLotId(
+      `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+    )
+
+    setSessionItems([])
+
+    setStockSessionActive(true)
+
+    setShowSessionStartForm(false)
+
+  }
+
+  function cancelSession() {
+
+    setStockSessionActive(false)
+
+    setShowSessionStartForm(false)
+
+    setSessionItems([])
+
+    setSessionSeller('')
+
+    setSessionDate(todayISO())
+
+    setSessionLotId('')
+
+    setSessionNewProduct(null)
+
+  }
+
+  function updateSessionItemQty(index: number, qty: string) {
+
+    setSessionItems((prev) => {
+
+      const updated = [...prev]
+
+      updated[index] = {
+        ...updated[index],
+        qty: qty,
+      }
+
+      return updated
+
+    })
+
+  }
+
+  function updateSessionItemCost(index: number, cost: string) {
+
+    setSessionItems((prev) => {
+
+      const updated = [...prev]
+
+      updated[index] = {
+        ...updated[index],
+        costPrice: cost,
+      }
+
+      return updated
+
+    })
+
+  }
+
+  function removeSessionItem(index: number) {
+
+    setSessionItems((prev) =>
+      prev.filter((_, i) => i !== index)
+    )
+
+  }
+
+  async function confirmSessionNewProduct() {
+
+    if (!sessionNewProduct.name) {
+
+      alert('Enter a product name')
+
+      return
+
+    }
+
+    const { data: inserted, error } =
+      await supabase
+        .from('products')
+        .insert([
+          {
+
+            barcode: sessionNewProduct.barcode,
+
+            product_name: sessionNewProduct.name,
+
+            category: sessionNewProduct.category,
+
+            brand: sessionNewProduct.brand,
+
+            shade: sessionNewProduct.shade,
+
+            weight: sessionNewProduct.weight,
+
+            mrp:
+              sessionNewProduct.mrp
+                ? Number(sessionNewProduct.mrp)
+                : null,
+
+            cost_price:
+              Number(sessionNewProduct.costPrice) || 0,
+
+            current_stock: 0,
+
+          },
+        ])
+        .select()
+        .single()
+
+    if (error || !inserted) {
+
+      alert(error?.message || 'Failed to add product')
+
+      return
+
+    }
+
+    setSessionItems((prev) => [
+      ...prev,
+      {
+        productId: inserted.id,
+        barcode: inserted.barcode,
+        name: inserted.product_name,
+        image: inserted.image_url,
+        category: inserted.category,
+        brand: inserted.brand,
+        shade: inserted.shade,
+        qty: Number(sessionNewProduct.qty) || 1,
+        costPrice: Number(sessionNewProduct.costPrice) || 0,
+      },
+    ])
+
+    setSessionNewProduct(null)
+
+    await fetchProducts()
+
+  }
+
+  async function finishStockSession() {
+
+    if (sessionItems.length === 0) {
+
+      alert('No items scanned yet')
+
+      return
+
+    }
+
+    for (const item of sessionItems) {
+
+      const currentProduct =
+        products.find(
+          (p) => p.id === item.productId
+        )
+
+      const baseStock =
+        currentProduct
+          ? currentProduct.current_stock
+          : 0
+
+      const newStock =
+        Number(baseStock) + Number(item.qty)
+
+      await supabase
+        .from('products')
+        .update({
+
+          current_stock: newStock,
+
+          cost_price: Number(item.costPrice),
+
+        })
+        .eq('id', item.productId)
+
+      await supabase
+        .from('stock_transactions')
+        .insert([
+          {
+
+            product_id: item.productId,
+
+            user_email: userEmail,
+
+            transaction_type: 'ADD',
+
+            quantity: Number(item.qty),
+
+            cost_price: Number(item.costPrice),
+
+            seller: sessionSeller,
+
+            stock_date: sessionDate,
+
+            lot_id: sessionLotId,
+
+            final_stock: newStock,
+
+          },
+        ])
+
+    }
+
+    const productsData =
+      await fetchProducts()
+
+    await fetchTopSellingProducts(
+      productsData
+    )
+
+    await fetchStockInHistory()
+
+    alert(
+      `Stock lot saved: ${sessionItems.length} product(s) updated`
+    )
+
+    cancelSession()
+
+  }
+
+  async function handleBarcodeScan(
+    code: string
+  ) {
+
     if (mode === 'ADD') {
 
-      const existingProduct =
-        products.find(
-          (p) =>
-            p.barcode === code
-        )
+      if (!stockSessionActive) {
 
-      setScannedBarcode(
-        code
-      )
+        alert('Start a stock session first')
 
-      if (existingProduct) {
-
-        setSelectedProduct(
-          existingProduct
-        )
-
-        setIsNewProduct(
-          false
-        )
-
-        setStockRate(
-          String(
-            existingProduct.cost_price
-          )
-        )
-
-      } else {
-
-        setIsNewProduct(
-          true
-        )
+        return
 
       }
 
-      setShowAddStockModal(
-        true
+      const product =
+        products.find(
+          (p) => p.barcode === code
+        )
+
+      if (product) {
+
+        addOrIncrementSessionItem(product)
+
+      } else {
+
+        setSessionNewProduct({
+          barcode: code,
+          name: '',
+          category: '',
+          brand: '',
+          shade: '',
+          weight: '',
+          mrp: '',
+          costPrice: '',
+          qty: '1',
+        })
+
+      }
+
+      return
+
+    }
+
+    const product =
+      products.find(
+        (p) => p.barcode === code
       )
+
+    if (!product) {
+
+      alert('Product not found')
 
       return
 
@@ -671,29 +996,11 @@ export default function Home() {
 
     if (mode === 'SELL') {
 
-      const product =
-        products.find(
-          (p) =>
-            p.barcode === code
-        )
-
-      if (!product) {
-
-        alert(
-          'Product not found'
-        )
-
-        return
-
-      }
-
       if (
         product.current_stock <= 0
       ) {
 
-        alert(
-          'Out of stock'
-        )
+        alert('Out of stock')
 
         return
 
@@ -741,15 +1048,21 @@ export default function Home() {
         setMessage('')
       }, 1000)
 
+      setScanBarcode('')
+
       return
-
-    } else {
-
-      processReturn(data)
 
     }
 
-    setScanBarcode('')
+    if (mode === 'RETURN') {
+
+      await processReturn(product)
+
+      setScanBarcode('')
+
+      return
+
+    }
 
   }
 
@@ -779,6 +1092,9 @@ export default function Home() {
 
         cost_price:
           Number(editCost),
+
+        mrp:
+          editMrp ? Number(editMrp) : null,
 
         current_stock:
           Number(editStock),
@@ -852,6 +1168,9 @@ export default function Home() {
           Cost:
             product.cost_price,
 
+          MRP:
+            product.mrp,
+
           Stock:
             product.current_stock,
 
@@ -915,6 +1234,9 @@ export default function Home() {
 
           Brand:
             product.brand,
+
+          MRP:
+            product.mrp,
 
           'Current Stock':
             product.current_stock,
@@ -983,6 +1305,9 @@ export default function Home() {
 
           Brand:
             product.brand,
+
+          MRP:
+            product.mrp,
 
           'Current Stock':
             product.current_stock,
@@ -1053,6 +1378,15 @@ export default function Home() {
       ),
     ]
 
+  const uniqueSellers =
+    [
+      ...new Set(
+        stockInHistory
+          .map((t) => t.seller)
+          .filter((s) => !!s)
+      ),
+    ]
+
   const filteredProducts =
     products
       .filter(
@@ -1113,6 +1447,9 @@ export default function Home() {
         (a, b) =>
           a.current_stock - b.current_stock
       )
+
+  const showScanUI =
+    mode !== 'ADD' || stockSessionActive
 
   return (
 
@@ -1180,6 +1517,17 @@ export default function Home() {
                 {userEmail}
 
               </div>
+
+              <button
+                onClick={() =>
+                  router.push('/stock-log')
+                }
+                className="bg-amber-400 border border-amber-500 text-zinc-900 hover:bg-amber-500 transition-colors px-4 py-2.5 rounded-xl text-sm font-semibold"
+              >
+
+                Stock Log
+
+              </button>
 
               <button
                 onClick={async () => {
@@ -1317,315 +1665,735 @@ export default function Home() {
             </div>
           )}
 
-          <div className="relative">
+          {/* ADD STOCK: session start gate */}
 
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.5"
-              className="w-5 h-5 absolute left-4 top-1/2 -translate-y-1/2 text-zinc-400"
-            >
+          {mode === 'ADD' && !stockSessionActive && (
 
-              <path d="M3 5v14M7 5v14M10 5v14M14 5v10M17 5v14M21 5v14" />
+            <div className="mb-6">
 
-            </svg>
+              {!showSessionStartForm ? (
 
-            <input
-            ref={scanInputRef}
-            type="text"
-            placeholder="Scan barcode"
-            value={scanBarcode}
-            autoFocus
-            onChange={async (e) => {
+                <button
+                  onClick={() =>
+                    setShowSessionStartForm(true)
+                  }
+                  className="w-full bg-green-600 hover:bg-green-700 transition-colors text-white font-bold text-lg py-5 rounded-2xl"
+                >
 
-              const value =
-                e.target.value
+                  Start Adding Stock
 
-              console.log("INPUT:", value)
+                </button>
 
-              setScanBarcode(
-                value
-              )
+              ) : (
 
-              const product =
-                products.find(
-                  (p) =>
-                    p.barcode === value
-                )
+                <div className="border-2 border-green-200 rounded-2xl p-6 bg-green-50 space-y-4">
 
-              /* NEW PRODUCT */
+                  <h3 className="font-bold text-lg text-zinc-900">
 
-              if (
-                !product &&
-                mode === 'ADD'
-              ) {
+                    Start Stock Lot
 
-                setScanBarcode(value)
+                  </h3>
 
-                return
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
 
-              }
+                    <div>
 
-              /* PRODUCT NOT FOUND */
+                      <label className="text-xs font-medium text-zinc-500 mb-1.5 block">
 
-              if (!product)
-                return
+                        Seller / Supplier
 
-              /* SELL MODE */
+                      </label>
 
-              if (mode === 'SELL') {
+                      <input
+                        type="text"
+                        list="sellers"
+                        placeholder="Seller name"
+                        value={sessionSeller}
+                        onChange={(e) =>
+                          setSessionSeller(
+                            e.target.value
+                          )
+                        }
+                        className="w-full border-2 rounded-2xl px-4 py-3 bg-white"
+                      />
 
-                if (
-                  product.current_stock <= 0
-                ) {
+                      <datalist id="sellers">
 
-                  alert(
-                    'Out of stock'
-                  )
+                        {uniqueSellers.map(
+                          (
+                            s,
+                            index
+                          ) => (
 
-                  return
+                            <option
+                              key={index}
+                              value={s}
+                            />
 
-                }
+                          )
+                        )}
 
-                await supabase
-                  .from('products')
-                  .update({
+                      </datalist>
 
-                    current_stock:
-                      product.current_stock - 1,
+                    </div>
 
-                  })
-                  .eq(
-                    'id',
-                    product.id
-                  )
+                    <div>
 
-                const { error } = await supabase
-                  .from('stock_transactions')
-                  .insert([
-                    {
-                      product_id: product.id,
-                      user_email: userEmail,
-                      transaction_type: 'SELL',
-                      quantity: 1,
-                    },
-                  ])
+                      <label className="text-xs font-medium text-zinc-500 mb-1.5 block">
 
-                if (error) {
+                        Stock Date
 
-                  alert(error.message)
+                      </label>
 
-                  console.log(error)
+                      <input
+                        type="date"
+                        value={sessionDate}
+                        onChange={(e) =>
+                          setSessionDate(
+                            e.target.value
+                          )
+                        }
+                        className="w-full border-2 rounded-2xl px-4 py-3 bg-white"
+                      />
 
-                }
+                    </div>
 
-                fetchProducts()
+                  </div>
 
-                setScanBarcode('')
+                  <div className="flex gap-3">
 
-                return
+                    <button
+                      onClick={beginScanning}
+                      className="flex-1 bg-green-600 hover:bg-green-700 transition-colors text-white font-bold py-3 rounded-2xl"
+                    >
 
-              }
+                      Begin Scanning
 
-              /* RETURN MODE */
+                    </button>
 
-              if (mode === 'RETURN') {
+                    <button
+                      onClick={() =>
+                        setShowSessionStartForm(false)
+                      }
+                      className="flex-1 bg-gray-200 hover:bg-gray-300 transition-colors font-bold py-3 rounded-2xl"
+                    >
 
-                await supabase
-                  .from('products')
-                  .update({
+                      Cancel
 
-                    current_stock:
-                      product.current_stock + 1,
+                    </button>
 
-                  })
-                  .eq(
-                    'id',
-                    product.id
-                  )
+                  </div>
 
-                fetchProducts()
+                </div>
 
-                setScanBarcode('')
+              )}
 
-                return
-
-              }
-
-              /* ADD STOCK EXISTING */
-
-              if (mode === 'ADD') {
-
-                setSelectedProduct(
-                  product
-                )
-
-                setIsNewProduct(
-                  false
-                )
-
-                setScannedBarcode(
-                  product.barcode
-                )
-
-                setStockRate(
-                  String(
-                    product.cost_price
-                  )
-                )
-
-                setShowAddStockModal(
-                  true
-                )
-
-              }
-
-            }}
-
-            onKeyDown={(e) => {
-
-              if (
-                e.key === 'Enter'
-              ) {
-
-                const product =
-                  products.find(
-                    (p) =>
-                      p.barcode ===
-                      scanBarcode
-                  )
-
-                /* NEW PRODUCT */
-
-                if (
-                  !product &&
-                  mode === 'ADD'
-                ) {
-
-                  setScannedBarcode(
-                    scanBarcode
-                  )
-
-                  setIsNewProduct(
-                    true
-                  )
-
-                  setShowAddStockModal(
-                    true
-                  )
-
-                  return
-
-                }
-
-                /* EXISTING PRODUCT */
-
-                handleBarcodeScan(
-                  scanBarcode
-                )
-
-              }
-
-            }}
-
-            className="w-full border border-zinc-300 focus:ring-4 focus:ring-emerald-200 focus:border-emerald-500 outline-none rounded-2xl pl-12 pr-5 py-4 text-xl transition-shadow"
-          />
-
-          </div>
-
-          {
-            mode === 'ADD' &&
-            scanBarcode &&
-            !products.find(
-              p => p.barcode === scanBarcode
-            ) && (
-
-              <button
-                onClick={() => {
-
-                  setScannedBarcode(
-                    scanBarcode
-                  )
-
-                  setIsNewProduct(
-                    true
-                  )
-
-                  setShowAddStockModal(
-                    true
-                  )
-
-                }}
-                className="mt-3 w-full bg-amber-500 hover:bg-amber-600 transition-colors text-white font-semibold py-4 rounded-2xl"
-              >
-                Add New Product
-              </button>
-
-            )
-          }
-
-          {showCamera && (
-
-            <div className="mt-6 overflow-hidden rounded-3xl border border-zinc-800 bg-black p-2">
-              <div
-                id="reader"
-                className="w-full min-h-[550px]"
-              ></div>
             </div>
 
           )}
 
-          <div className="mb-2 mt-4">
+          {showScanUI && (
 
-            <label className="text-xs font-medium text-zinc-500 mb-1.5 block">
+            <>
 
-              Camera source
+              <div className="relative">
 
-            </label>
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.5"
+                  className="w-5 h-5 absolute left-4 top-1/2 -translate-y-1/2 text-zinc-400"
+                >
 
-            <select
-              value={selectedCamera}
-              onChange={(e) => {
+                  <path d="M3 5v14M7 5v14M10 5v14M14 5v10M17 5v14M21 5v14" />
 
-                const cameraId =
-                  e.target.value
+                </svg>
 
-                setSelectedCamera(
-                  cameraId
-                )
+                <input
+                ref={scanInputRef}
+                type="text"
+                placeholder="Scan barcode"
+                value={scanBarcode}
+                autoFocus
+                onChange={async (e) => {
 
-                localStorage.setItem(
-                  "selectedCamera",
-                  cameraId
-                )
+                  const value =
+                    e.target.value
 
-                window.location.reload()
+                  setScanBarcode(
+                    value
+                  )
 
-              }}
+                  const product =
+                    products.find(
+                      (p) =>
+                        p.barcode === value
+                    )
 
-              className="w-full bg-white border border-zinc-300 focus:ring-4 focus:ring-emerald-200 focus:border-emerald-500 outline-none rounded-2xl px-5 py-3.5 text-zinc-700 font-medium"
-            >
+                  if (mode === 'ADD') {
 
-              {availableCameras.map(
-                (camera) => (
+                    if (!product) return
 
-                  <option
-                    key={camera.id}
-                    value={camera.id}
+                    if (!stockSessionActive) return
+
+                    addOrIncrementSessionItem(product)
+
+                    setScanBarcode('')
+
+                    return
+
+                  }
+
+                  if (!product) return
+
+                  if (mode === 'SELL') {
+
+                    if (
+                      product.current_stock <= 0
+                    ) {
+
+                      alert(
+                        'Out of stock'
+                      )
+
+                      return
+
+                    }
+
+                    await supabase
+                      .from('products')
+                      .update({
+
+                        current_stock:
+                          product.current_stock - 1,
+
+                      })
+                      .eq(
+                        'id',
+                        product.id
+                      )
+
+                    await supabase
+                      .from('stock_transactions')
+                      .insert([
+                        {
+                          product_id: product.id,
+                          user_email: userEmail,
+                          transaction_type: 'SELL',
+                          quantity: 1,
+                        },
+                      ])
+
+                    fetchProducts()
+
+                    setMessage(
+                      `${product.product_name} sold`
+                    )
+
+                    setTimeout(() => {
+                      setMessage('')
+                    }, 1000)
+
+                    setScanBarcode('')
+
+                    return
+
+                  }
+
+                  if (mode === 'RETURN') {
+
+                    await supabase
+                      .from('products')
+                      .update({
+
+                        current_stock:
+                          product.current_stock + 1,
+
+                      })
+                      .eq(
+                        'id',
+                        product.id
+                      )
+
+                    fetchProducts()
+
+                    setScanBarcode('')
+
+                    return
+
+                  }
+
+                }}
+
+                onKeyDown={(e) => {
+
+                  if (
+                    e.key !== 'Enter'
+                  ) return
+
+                  if (mode === 'ADD') {
+
+                    if (!stockSessionActive) return
+
+                    const product =
+                      products.find(
+                        (p) =>
+                          p.barcode ===
+                          scanBarcode
+                      )
+
+                    if (product) {
+
+                      addOrIncrementSessionItem(product)
+
+                    } else if (scanBarcode) {
+
+                      setSessionNewProduct({
+                        barcode: scanBarcode,
+                        name: '',
+                        category: '',
+                        brand: '',
+                        shade: '',
+                        weight: '',
+                        mrp: '',
+                        costPrice: '',
+                        qty: '1',
+                      })
+
+                    }
+
+                    setScanBarcode('')
+
+                    return
+
+                  }
+
+                  handleBarcodeScan(
+                    scanBarcode
+                  )
+
+                }}
+
+                className="w-full border border-zinc-300 focus:ring-4 focus:ring-emerald-200 focus:border-emerald-500 outline-none rounded-2xl pl-12 pr-5 py-4 text-xl transition-shadow"
+              />
+
+              </div>
+
+              {
+                mode === 'ADD' &&
+                stockSessionActive &&
+                scanBarcode &&
+                !products.find(
+                  p => p.barcode === scanBarcode
+                ) && (
+
+                  <button
+                    onClick={() => {
+
+                      setSessionNewProduct({
+                        barcode: scanBarcode,
+                        name: '',
+                        category: '',
+                        brand: '',
+                        shade: '',
+                        weight: '',
+                        mrp: '',
+                        costPrice: '',
+                        qty: '1',
+                      })
+
+                      setScanBarcode('')
+
+                    }}
+                    className="mt-3 w-full bg-amber-500 hover:bg-amber-600 transition-colors text-white font-semibold py-4 rounded-2xl"
                   >
-
-                    {camera.label}
-
-                  </option>
+                    Add New Product to Lot
+                  </button>
 
                 )
+              }
+
+              {showCamera && (
+
+                <div className="mt-6 overflow-hidden rounded-3xl border border-zinc-800 bg-black p-2">
+                  <div
+                    id="reader"
+                    className="w-full min-h-[550px]"
+                  ></div>
+                </div>
+
               )}
 
-            </select>
+              <div className="mb-2 mt-4">
 
-          </div>
+                <label className="text-xs font-medium text-zinc-500 mb-1.5 block">
+
+                  Camera source
+
+                </label>
+
+                <select
+                  value={selectedCamera}
+                  onChange={(e) => {
+
+                    const cameraId =
+                      e.target.value
+
+                    setSelectedCamera(
+                      cameraId
+                    )
+
+                    localStorage.setItem(
+                      "selectedCamera",
+                      cameraId
+                    )
+
+                    window.location.reload()
+
+                  }}
+
+                  className="w-full bg-white border border-zinc-300 focus:ring-4 focus:ring-emerald-200 focus:border-emerald-500 outline-none rounded-2xl px-5 py-3.5 text-zinc-700 font-medium"
+                >
+
+                  {availableCameras.map(
+                    (camera) => (
+
+                      <option
+                        key={camera.id}
+                        value={camera.id}
+                      >
+
+                        {camera.label}
+
+                      </option>
+
+                    )
+                  )}
+
+                </select>
+
+              </div>
+
+            </>
+
+          )}
+
+          {/* ACTIVE STOCK LOT PANEL */}
+
+          {mode === 'ADD' && stockSessionActive && (
+
+            <div className="mt-6 border-2 border-zinc-200 rounded-2xl p-6 space-y-4">
+
+              <div className="flex items-center justify-between flex-wrap gap-3">
+
+                <div>
+
+                  <p className="text-sm text-zinc-500">
+
+                    Current Stock Lot
+
+                  </p>
+
+                  <p className="font-bold text-lg text-zinc-900">
+
+                    {sessionSeller || 'No seller set'}
+                    {' · '}
+                    {sessionDate}
+
+                  </p>
+
+                </div>
+
+                <div className="flex gap-2">
+
+                  <button
+                    onClick={finishStockSession}
+                    className="bg-green-600 hover:bg-green-700 transition-colors text-white px-6 py-3 rounded-xl font-bold"
+                  >
+
+                    Done
+
+                  </button>
+
+                  <button
+                    onClick={cancelSession}
+                    className="bg-gray-200 hover:bg-gray-300 transition-colors px-6 py-3 rounded-xl font-bold"
+                  >
+
+                    Cancel Session
+
+                  </button>
+
+                </div>
+
+              </div>
+
+              {sessionNewProduct && (
+
+                <div className="border rounded-2xl p-4 bg-amber-50 space-y-3">
+
+                  <p className="font-semibold text-zinc-900">
+
+                    New product scanned: {sessionNewProduct.barcode}
+
+                  </p>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+
+                    <input
+                      placeholder="Product Name"
+                      value={sessionNewProduct.name}
+                      onChange={(e) =>
+                        setSessionNewProduct({
+                          ...sessionNewProduct,
+                          name: e.target.value,
+                        })
+                      }
+                      className="border-2 rounded-xl px-3 py-2.5 bg-white"
+                    />
+
+                    <input
+                      list="categories"
+                      placeholder="Category"
+                      value={sessionNewProduct.category}
+                      onChange={(e) =>
+                        setSessionNewProduct({
+                          ...sessionNewProduct,
+                          category: e.target.value,
+                        })
+                      }
+                      className="border-2 rounded-xl px-3 py-2.5 bg-white"
+                    />
+
+                    <input
+                      list="brands"
+                      placeholder="Brand"
+                      value={sessionNewProduct.brand}
+                      onChange={(e) =>
+                        setSessionNewProduct({
+                          ...sessionNewProduct,
+                          brand: e.target.value,
+                        })
+                      }
+                      className="border-2 rounded-xl px-3 py-2.5 bg-white"
+                    />
+
+                    <input
+                      placeholder="Shade"
+                      value={sessionNewProduct.shade}
+                      onChange={(e) =>
+                        setSessionNewProduct({
+                          ...sessionNewProduct,
+                          shade: e.target.value,
+                        })
+                      }
+                      className="border-2 rounded-xl px-3 py-2.5 bg-white"
+                    />
+
+                    <input
+                      placeholder="Weight"
+                      value={sessionNewProduct.weight}
+                      onChange={(e) =>
+                        setSessionNewProduct({
+                          ...sessionNewProduct,
+                          weight: e.target.value,
+                        })
+                      }
+                      className="border-2 rounded-xl px-3 py-2.5 bg-white"
+                    />
+
+                    <input
+                      type="number"
+                      placeholder="MRP"
+                      value={sessionNewProduct.mrp}
+                      onChange={(e) =>
+                        setSessionNewProduct({
+                          ...sessionNewProduct,
+                          mrp: e.target.value,
+                        })
+                      }
+                      className="border-2 rounded-xl px-3 py-2.5 bg-white"
+                    />
+
+                    <input
+                      type="number"
+                      placeholder="Cost Price"
+                      value={sessionNewProduct.costPrice}
+                      onChange={(e) =>
+                        setSessionNewProduct({
+                          ...sessionNewProduct,
+                          costPrice: e.target.value,
+                        })
+                      }
+                      className="border-2 rounded-xl px-3 py-2.5 bg-white"
+                    />
+
+                    <input
+                      type="number"
+                      placeholder="Quantity"
+                      value={sessionNewProduct.qty}
+                      onChange={(e) =>
+                        setSessionNewProduct({
+                          ...sessionNewProduct,
+                          qty: e.target.value,
+                        })
+                      }
+                      className="border-2 rounded-xl px-3 py-2.5 bg-white"
+                    />
+
+                  </div>
+
+                  <div className="flex gap-3">
+
+                    <button
+                      onClick={confirmSessionNewProduct}
+                      className="flex-1 bg-amber-500 hover:bg-amber-600 transition-colors text-white py-3 rounded-xl font-bold"
+                    >
+
+                      Add to Lot
+
+                    </button>
+
+                    <button
+                      onClick={() =>
+                        setSessionNewProduct(null)
+                      }
+                      className="flex-1 bg-gray-200 hover:bg-gray-300 transition-colors py-3 rounded-xl font-bold"
+                    >
+
+                      Skip
+
+                    </button>
+
+                  </div>
+
+                </div>
+
+              )}
+
+              {sessionItems.length === 0 ? (
+
+                <p className="text-sm text-zinc-400">
+
+                  No items scanned yet — scan a barcode above to add it to this lot.
+
+                </p>
+
+              ) : (
+
+                <div className="space-y-3 max-h-96 overflow-y-auto">
+
+                  {sessionItems.map(
+                    (item, index) => (
+
+                      <div
+                        key={index}
+                        className="flex items-center gap-3 border rounded-xl p-3"
+                      >
+
+                        {item.image ? (
+
+                          <img
+                            src={item.image}
+                            alt=""
+                            className="w-10 h-10 rounded-lg object-cover border flex-shrink-0"
+                          />
+
+                        ) : (
+
+                          <div className="w-10 h-10 rounded-lg bg-zinc-100 border flex-shrink-0" />
+
+                        )}
+
+                        <div className="flex-1 min-w-0">
+
+                          <p className="font-semibold text-sm text-zinc-900 truncate">
+
+                            {item.name}
+
+                          </p>
+
+                          <p className="text-xs text-zinc-400">
+
+                            {item.barcode}
+
+                          </p>
+
+                        </div>
+
+                        <div>
+
+                          <label className="text-[10px] text-zinc-400 block">Qty</label>
+
+                          <input
+                            type="number"
+                            value={item.qty}
+                            onChange={(e) =>
+                              updateSessionItemQty(
+                                index,
+                                e.target.value
+                              )
+                            }
+                            className="w-16 border rounded-lg px-2 py-1 text-sm"
+                          />
+
+                        </div>
+
+                        <div>
+
+                          <label className="text-[10px] text-zinc-400 block">Cost</label>
+
+                          <input
+                            type="number"
+                            value={item.costPrice}
+                            onChange={(e) =>
+                              updateSessionItemCost(
+                                index,
+                                e.target.value
+                              )
+                            }
+                            className="w-20 border rounded-lg px-2 py-1 text-sm"
+                          />
+
+                        </div>
+
+                        <button
+                          onClick={() =>
+                            removeSessionItem(index)
+                          }
+                          className="text-red-500 hover:text-red-700 text-lg font-bold px-2"
+                        >
+
+                          ×
+
+                        </button>
+
+                      </div>
+
+                    )
+                  )}
+
+                </div>
+
+              )}
+
+              <p className="text-sm text-zinc-500">
+
+                {sessionItems.length} product(s)
+                {' · '}
+                {sessionItems.reduce(
+                  (s, i) => s + Number(i.qty || 0),
+                  0
+                )}
+                {' '}total units
+
+              </p>
+
+            </div>
+
+          )}
 
         </div>
 
@@ -2006,6 +2774,18 @@ export default function Home() {
 
             <input
               type="number"
+              placeholder="MRP"
+              value={mrp}
+              onChange={(e) =>
+                setMrp(
+                  e.target.value
+                )
+              }
+              className="border border-zinc-300 focus:ring-4 focus:ring-emerald-200 focus:border-emerald-500 outline-none rounded-2xl px-4 py-4"
+            />
+
+            <input
+              type="number"
 
               placeholder="Stock"
               value={stock}
@@ -2290,6 +3070,12 @@ export default function Home() {
 
                   <th className="pb-3 pr-4 text-sm font-medium text-zinc-500 text-right">
 
+                    MRP
+
+                  </th>
+
+                  <th className="pb-3 pr-4 text-sm font-medium text-zinc-500 text-right">
+
                     Stock
 
                   </th>
@@ -2405,6 +3191,12 @@ export default function Home() {
 
                       </td>
 
+                      <td className="py-3 pr-4 text-sm text-zinc-600 text-right tabular-nums">
+
+                        {product.mrp ? `Rs. ${product.mrp}` : '—'}
+
+                      </td>
+
                       <td className="py-3 pr-4 font-semibold text-zinc-900 text-right tabular-nums">
 
                         {product.current_stock}
@@ -2445,6 +3237,10 @@ export default function Home() {
 
                               setEditCost(
                                 product.cost_price
+                              )
+
+                              setEditMrp(
+                                product.mrp
                               )
 
                               setEditStock(
@@ -2496,21 +3292,19 @@ export default function Home() {
                                 product
                               )
 
-                              setIsNewProduct(
-                                false
+                              setAdjustStockQty(
+                                String(
+                                  product.current_stock
+                                )
                               )
 
-                              setScannedBarcode(
-                                product.barcode
-                              )
-
-                              setStockRate(
+                              setAdjustCostPrice(
                                 String(
                                   product.cost_price
                                 )
                               )
 
-                              setShowAddStockModal(
+                              setShowAdjustStockModal(
                                 true
                               )
 
@@ -2688,6 +3482,18 @@ export default function Home() {
 
                 <input
                   type="number"
+                  value={editMrp}
+                  onChange={(e) =>
+                    setEditMrp(
+                      e.target.value
+                    )
+                  }
+                  placeholder="MRP"
+                  className="w-full border-2 rounded-2xl px-4 py-4"
+                />
+
+                <input
+                  type="number"
                   value={editStock}
                   onChange={(e) =>
                     setEditStock(
@@ -2831,152 +3637,61 @@ export default function Home() {
 
       )}
 
-      {showAddStockModal && (
+      {showAdjustStockModal && selectedProduct && (
 
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
 
-          <div className="bg-white rounded-[32px] p-8 shadow-2xl border border-zinc-200 w-full max-w-2xl shadow-2xl">
+          <div className="bg-white rounded-[32px] p-8 shadow-2xl border border-zinc-200 w-full max-w-md">
 
-            <h2 className="text-4xl font-bold mb-8">
+            <h2 className="text-3xl font-bold mb-2">
 
-              {isNewProduct
-                ? 'Add New Product'
-                : 'Add Stock'}
+              Adjust Stock
 
             </h2>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <p className="text-sm text-zinc-500 mb-6">
 
-              <input
-                type="text"
-                value={scannedBarcode}
-                disabled
-                className="border-2 rounded-2xl px-4 py-4 bg-zinc-100"
-              />
+              {selectedProduct.product_name}
+              {' · '}
+              {selectedProduct.barcode}
 
-              {isNewProduct && (
+            </p>
 
-                <>
-
-                  <input
-                    type="text"
-                    placeholder="Product Name"
-                    value={productName}
-                    onChange={(e) =>
-                      setProductName(
-                        e.target.value
-                      )
-                    }
-                    className="border-2 rounded-2xl px-4 py-4"
-                  />
-
-                  <input
-                    list="categories"
-                    placeholder="Category"
-                    value={category}
-                    onChange={(e) =>
-                      setCategory(
-                        e.target.value
-                      )
-                    }
-                    className="border-2 rounded-2xl px-4 py-4"
-                  />
-
-                  <datalist id="categories">
-
-                    {uniqueCategories.map(
-                      (
-                        cat,
-                        index
-                      ) => (
-
-                        <option
-                          key={index}
-                          value={cat}
-                        />
-
-                      )
-                    )}
-
-                  </datalist>
-
-                  <input
-                    list="brands"
-                    placeholder="Brand"
-                    value={brand}
-                    onChange={(e) =>
-                      setBrand(
-                        e.target.value
-                      )
-                    }
-                    className="border-2 rounded-2xl px-4 py-4"
-                  />
-
-                  <input
-                    type="text"
-                    placeholder="Shade"
-                    value={shade}
-                    onChange={(e) =>
-                      setShade(
-                        e.target.value
-                      )
-                    }
-                    className="border-2 rounded-2xl px-4 py-4"
-                  />
-
-                  <input
-                    type="text"
-                    placeholder="Weight"
-                    value={weight}
-                    onChange={(e) =>
-                      setWeight(
-                        e.target.value
-                      )
-                    }
-                    className="border-2 rounded-2xl px-4 py-4"
-                  />
-
-                </>
-
-              )}
-
-              <input
-                type="number"
-                placeholder="Quantity"
-                value={stockQty}
-                onChange={(e) =>
-                  setStockQty(
-                    e.target.value
-                  )
-                }
-                className="border-2 rounded-2xl px-4 py-4"
-              />
+            <div className="space-y-4">
 
               <div>
 
                 <input
                   type="number"
-                  placeholder="Cost Price"
-                  value={stockRate}
+                  placeholder="Final Stock Quantity"
+                  value={adjustStockQty}
                   onChange={(e) =>
-                    setStockRate(
+                    setAdjustStockQty(
                       e.target.value
                     )
                   }
                   className="w-full border-2 rounded-2xl px-4 py-4"
                 />
 
-                {!isNewProduct && (
+                <p className="text-xs text-zinc-400 mt-1 pl-1">
 
-                  <p className="text-xs text-zinc-400 mt-1 pl-1">
+                  This sets the exact stock count — it does not add to the current amount.
 
-                    Defaults to the last cost price — change it only if it's different this time.
-
-                  </p>
-
-                )}
+                </p>
 
               </div>
+
+              <input
+                type="number"
+                placeholder="Cost Price"
+                value={adjustCostPrice}
+                onChange={(e) =>
+                  setAdjustCostPrice(
+                    e.target.value
+                  )
+                }
+                className="w-full border-2 rounded-2xl px-4 py-4"
+              />
 
             </div>
 
@@ -2985,68 +3700,21 @@ export default function Home() {
               <button
                 onClick={async () => {
 
-                  if (isNewProduct) {
+                  await supabase
+                    .from('products')
+                    .update({
 
-                    await supabase
-                      .from('products')
-                      .insert([
-                        {
+                      current_stock:
+                        Number(adjustStockQty),
 
-                          barcode:
-                            scannedBarcode,
+                      cost_price:
+                        Number(adjustCostPrice),
 
-                          product_name:
-                            productName,
-
-                          category,
-
-                          brand,
-
-                          shade,
-
-                          weight,
-
-                          current_stock:
-                            Number(
-                              stockQty
-                            ),
-
-                          cost_price:
-                            Number(
-                              stockRate
-                            ),
-
-                        },
-                      ])
-
-                  } else {
-
-                    await supabase
-                      .from('products')
-                      .update({
-
-                        current_stock:
-
-                          Number(
-                            selectedProduct.current_stock
-                          ) +
-
-                          Number(
-                            stockQty
-                          ),
-
-                        cost_price:
-                          Number(
-                            stockRate
-                          ),
-
-                      })
-                      .eq(
-                        'id',
-                        selectedProduct.id
-                      )
-
-                  }
+                    })
+                    .eq(
+                      'id',
+                      selectedProduct.id
+                    )
 
                   const productsData =
                     await fetchProducts()
@@ -3055,15 +3723,9 @@ export default function Home() {
                     productsData
                   )
 
-                  setShowAddStockModal(
+                  setShowAdjustStockModal(
                     false
                   )
-
-                  setStockQty('')
-
-                  setStockRate('')
-
-                  setBrand('')
 
                 }}
                 className="flex-1 bg-green-600 text-white py-4 rounded-2xl font-bold text-xl"
@@ -3075,7 +3737,7 @@ export default function Home() {
 
               <button
                 onClick={() =>
-                  setShowAddStockModal(
+                  setShowAdjustStockModal(
                     false
                   )
                 }
@@ -3093,6 +3755,7 @@ export default function Home() {
         </div>
 
       )}
+
     </div>
 
   )
