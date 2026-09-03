@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import { supabase } from '../../../lib/supabase'
+import ConfirmDialog from '../../../components/ConfirmDialog'
 
 function normalizeName(name: any) {
   return (name || '').toString().trim().toLowerCase()
@@ -22,6 +23,7 @@ export default function SupplierLedgerPage() {
   const [openingBalanceInput, setOpeningBalanceInput] = useState('')
   const [editingOpening, setEditingOpening] = useState(false)
   const [savingOpening, setSavingOpening] = useState(false)
+  const [openingConfirmStep, setOpeningConfirmStep] = useState(0)
 
   const [paymentAmount, setPaymentAmount] = useState('')
   const [paymentDate, setPaymentDate] = useState('')
@@ -93,22 +95,11 @@ export default function SupplierLedgerPage() {
     return Number(t.cost_price || 0) * Number(t.quantity || 0)
   }
 
-  async function saveOpeningBalance() {
+  async function confirmSaveOpeningBalance() {
 
     const amount = Number(openingBalanceInput) || 0
 
-    const step1 = window.confirm(
-      `Change Old Pending Payment for ${supplier?.name || 'this supplier'} to Rs. ${amount.toLocaleString()}?\n\nThis changes the supplier's account balance.`
-    )
-
-    if (!step1) return
-
-    const step2 = window.confirm(
-      `Please confirm again: set Old Pending Payment to Rs. ${amount.toLocaleString()}. This cannot be undone automatically.`
-    )
-
-    if (!step2) return
-
+    setOpeningConfirmStep(0)
     setSavingOpening(true)
 
     const { error } = await supabase
@@ -229,7 +220,7 @@ export default function SupplierLedgerPage() {
 
     return (
 
-      <div className="min-h-screen bg-zinc-100 p-6 text-black">
+      <div className="text-black">
 
         <p className="text-zinc-500">Loading...</p>
 
@@ -241,7 +232,7 @@ export default function SupplierLedgerPage() {
 
   return (
 
-    <div className="min-h-screen bg-zinc-100 p-6 text-black">
+    <div className="text-black">
 
       <div className="max-w-5xl mx-auto space-y-6">
 
@@ -348,7 +339,7 @@ export default function SupplierLedgerPage() {
               />
 
               <button
-                onClick={saveOpeningBalance}
+                onClick={() => setOpeningConfirmStep(1)}
                 disabled={savingOpening}
                 className="bg-zinc-900 text-white px-5 py-2.5 rounded-xl text-sm font-semibold disabled:opacity-50"
               >
@@ -476,6 +467,25 @@ export default function SupplierLedgerPage() {
         </div>
 
       </div>
+
+      <ConfirmDialog
+        open={openingConfirmStep === 1}
+        title="Change Old Pending Payment?"
+        message={`Set Old Pending Payment for ${supplier?.name || 'this supplier'} to Rs. ${(Number(openingBalanceInput) || 0).toLocaleString()}?\n\nThis changes the supplier's account balance and affects their Pending Payment total.`}
+        confirmLabel="Continue"
+        onConfirm={() => setOpeningConfirmStep(2)}
+        onCancel={() => setOpeningConfirmStep(0)}
+      />
+
+      <ConfirmDialog
+        open={openingConfirmStep === 2}
+        title="Please confirm again"
+        message={`Final confirmation: Old Pending Payment will be set to Rs. ${(Number(openingBalanceInput) || 0).toLocaleString()}.`}
+        confirmLabel="Yes, Save"
+        danger
+        onConfirm={confirmSaveOpeningBalance}
+        onCancel={() => setOpeningConfirmStep(0)}
+      />
 
     </div>
 

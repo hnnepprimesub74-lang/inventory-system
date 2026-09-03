@@ -3,7 +3,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '../lib/supabase'
-import { Html5Qrcode } from "html5-qrcode"
 import * as XLSX from 'xlsx'
 import { saveAs } from 'file-saver'
 
@@ -21,15 +20,7 @@ export default function Home() {
 
   const router = useRouter()
 
-  const scannerRef = useRef<Html5Qrcode | null>(null)
-
-  const scannerStartingRef = useRef(false)
-
   const scanInputRef = useRef<any>(null)
-
-  const lastScannedRef = useRef('')
-
-  const lastScanTimeRef = useRef(0)
 
   const [deleteProductId,
     setDeleteProductId] =
@@ -87,26 +78,6 @@ export default function Home() {
   const [selectedBrand,
     setSelectedBrand] =
     useState('ALL')
-
-  const [showCamera,
-    setShowCamera] =
-    useState(false)
-
-  const [availableCameras,
-    setAvailableCameras] =
-    useState<any[]>([])
-
-  const [selectedCamera,
-    setSelectedCamera] =
-    useState("")
-
-  const [showAllTopSelling,
-    setShowAllTopSelling] =
-    useState(false)
-
-  const [showAllLowStock,
-    setShowAllLowStock] =
-    useState(false)
 
   const [editingProduct,
     setEditingProduct] =
@@ -234,108 +205,6 @@ export default function Home() {
     loadData()
 
   }, [])
-
-  useEffect(() => {
-
-    if (!showCamera) {
-
-      if (scannerRef.current) {
-
-        scannerRef.current.stop()
-          .then(() => {
-            scannerRef.current = null
-          })
-          .catch(console.error)
-
-      }
-
-      return
-    }
-
-    if (
-      scannerRef.current ||
-      scannerStartingRef.current
-    ) {
-      return
-    }
-
-    scannerStartingRef.current = true
-
-    const scanner =
-      new Html5Qrcode("reader")
-
-    scannerRef.current = scanner
-
-    const startScanner = async () => {
-
-      const cameras = await Html5Qrcode.getCameras()
-
-      setAvailableCameras(cameras)
-
-      const savedCamera =
-        localStorage.getItem(
-          "selectedCamera"
-        )
-
-      const cameraToUse =
-        savedCamera ||
-        cameras[0]?.id
-
-      setSelectedCamera(
-        cameraToUse
-      )
-
-      await scanner.start(
-        cameraToUse,
-        {
-          fps: 20,
-          qrbox: 450,
-          aspectRatio: 1.0
-        },
-        async (decodedText) => {
-
-          const now = Date.now()
-
-          if (
-            lastScannedRef.current === decodedText &&
-            now - lastScanTimeRef.current < 5000
-          ) {
-            return
-          }
-
-          lastScannedRef.current = decodedText
-          lastScanTimeRef.current = now
-
-          setScanBarcode(decodedText)
-
-          await handleBarcodeScan(decodedText)
-
-        },
-        () => { }
-      )
-
-      scannerStartingRef.current = false
-    }
-
-    startScanner().catch((err) => {
-      scannerStartingRef.current = false
-      console.error(err)
-    })
-
-    return () => {
-
-      if (scannerRef.current) {
-
-        scannerRef.current.stop()
-          .catch(() => { })
-
-        scannerRef.current = null
-
-      }
-
-    }
-
-  }, [showCamera])
 
   async function checkUser() {
 
@@ -1218,148 +1087,6 @@ export default function Home() {
 
   }
 
-  function exportLowStockToExcel() {
-
-    const exportData =
-      lowStockProducts.map(
-        (product) => ({
-          Product:
-            product.product_name,
-
-          Category:
-            product.category,
-
-          Shade:
-            product.shade,
-
-          Brand:
-            product.brand,
-
-          MRP:
-            product.mrp,
-
-          'Current Stock':
-            product.current_stock,
-
-          'Sold (30d)':
-            product.sold,
-
-          'Reorder Point':
-            Math.ceil(
-              product.reorderPoint
-            ),
-        })
-      )
-
-    const worksheet =
-      XLSX.utils.json_to_sheet(
-        exportData
-      )
-
-    const workbook =
-      XLSX.utils.book_new()
-
-    XLSX.utils.book_append_sheet(
-      workbook,
-      worksheet,
-      'Low Stock'
-    )
-
-    const excelBuffer =
-      XLSX.write(
-        workbook,
-        {
-          bookType: 'xlsx',
-          type: 'array',
-        }
-      )
-
-    const blob = new Blob(
-      [excelBuffer],
-      {
-        type:
-          'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;charset=UTF-8',
-      }
-    )
-
-    saveAs(
-      blob,
-      'low-stock.xlsx'
-    )
-
-  }
-
-  function exportTopSellingToExcel() {
-
-    const exportData =
-      topSellingProducts.map(
-        (product) => ({
-          Product:
-            product.product_name,
-
-          Category:
-            product.category,
-
-          Shade:
-            product.shade,
-
-          Brand:
-            product.brand,
-
-          MRP:
-            product.mrp,
-
-          'Current Stock':
-            product.current_stock,
-
-          'Sold (30d)':
-            product.sold,
-
-          'Reorder Point':
-            Math.ceil(
-              product.reorderPoint
-            ),
-        })
-      )
-
-    const worksheet =
-      XLSX.utils.json_to_sheet(
-        exportData
-      )
-
-    const workbook =
-      XLSX.utils.book_new()
-
-    XLSX.utils.book_append_sheet(
-      workbook,
-      worksheet,
-      'Top Selling'
-    )
-
-    const excelBuffer =
-      XLSX.write(
-        workbook,
-        {
-          bookType: 'xlsx',
-          type: 'array',
-        }
-      )
-
-    const blob = new Blob(
-      [excelBuffer],
-      {
-        type:
-          'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;charset=UTF-8',
-      }
-    )
-
-    saveAs(
-      blob,
-      'top-selling.xlsx'
-    )
-
-  }
-
   const uniqueCategories =
     [
       ...new Set(
@@ -1428,152 +1155,141 @@ export default function Home() {
           )
       )
 
-  const totalInventoryCost =
+  const totalStockValue =
     products.reduce(
       (sum, item) =>
-        sum +
-        item.cost_price *
-        item.current_stock,
+        sum + Number(item.cost_price || 0) * Number(item.current_stock || 0),
       0
     )
 
-  const lowStockProducts =
-    topSellingProducts
-      .filter(
-        (p) =>
-          p.current_stock <= p.reorderPoint
-      )
-      .sort(
-        (a, b) =>
-          a.current_stock - b.current_stock
-      )
+  const totalUnitsInStock =
+    products.reduce(
+      (sum, item) => sum + Number(item.current_stock || 0),
+      0
+    )
+
+  const productsInStockCount =
+    products.filter((p) => Number(p.current_stock || 0) > 0).length
+
+  const outOfStockCount =
+    products.filter((p) => Number(p.current_stock || 0) <= 0).length
+
+  const lowStockCount =
+    topSellingProducts.filter(
+      (p) => p.current_stock > 0 && p.current_stock <= p.reorderPoint
+    ).length
+
+  const uniqueProductGroupCount = new Set(
+    products.map((p) =>
+      [
+        (p.product_name || '').trim().toLowerCase(),
+        (p.brand || '').trim().toLowerCase(),
+        (p.category || '').trim().toLowerCase(),
+      ].join('|')
+    )
+  ).size
 
   const showScanUI =
     mode !== 'ADD' || stockSessionActive
 
   return (
 
-    <div className="min-h-screen bg-zinc-100 p-6 text-black">
+    <div className="text-black">
 
       <div className="max-w-7xl mx-auto space-y-6">
 
-        {/* HEADER */}
+        {/* OVERVIEW */}
 
-        <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-5">
+        <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-5 gap-4">
 
-          <div className="flex items-start gap-4">
+          <div className="bg-white rounded-2xl shadow-sm border border-zinc-200 p-5">
 
-            <div className="w-12 h-12 rounded-xl bg-zinc-900 text-white flex items-center justify-center flex-shrink-0 mt-1">
+            <div className="w-10 h-10 rounded-xl bg-indigo-100 text-indigo-600 flex items-center justify-center mb-3">
 
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.8"
-                className="w-6 h-6"
-              >
-
-                <ellipse cx="12" cy="5" rx="8" ry="3" />
-
-                <path d="M4 5v14c0 1.66 3.58 3 8 3s8-1.34 8-3V5" />
-
-                <path d="M4 12c0 1.66 3.58 3 8 3s8-1.34 8-3" />
-
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="w-5 h-5">
+                <path d="M12 3l8 4.5v9L12 21l-8-4.5v-9L12 3z" strokeLinejoin="round" />
+                <path d="M12 12l8-4.5M12 12v9M12 12L4 7.5" strokeLinejoin="round" />
               </svg>
 
             </div>
 
-            <div>
-
-              <h1 className="text-3xl font-bold tracking-tight text-zinc-900">
-
-                Cloud Inventory ERP
-
-              </h1>
-
-              <p className="text-base text-zinc-500 mt-1">
-
-                Professional Inventory System
-
-              </p>
-
-              <p className="text-xs text-zinc-400 mt-0.5">
-
-                Developed by Kumar Shah
-
-              </p>
-
-            </div>
+            <p className="text-xs text-zinc-500">Total Stock Value</p>
+            <p className="text-2xl font-bold tracking-tight mt-1 tabular-nums text-zinc-900">Rs. {totalStockValue.toLocaleString('en-IN')}</p>
 
           </div>
 
-          <div className="flex items-center gap-6 flex-wrap">
+          <div className="bg-white rounded-2xl shadow-sm border border-zinc-200 p-5">
 
-            <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-blue-100 text-blue-600 flex items-center justify-center mb-3">
 
-              <div className="bg-white px-4 py-2.5 rounded-xl shadow-sm border border-zinc-200 text-sm font-medium text-zinc-700">
-
-                {userEmail}
-
-              </div>
-
-              <button
-                onClick={() =>
-                  router.push('/stock-log')
-                }
-                className="bg-amber-400 border border-amber-500 text-zinc-900 hover:bg-amber-500 transition-colors px-4 py-2.5 rounded-xl text-sm font-semibold"
-              >
-
-                Stock Log
-
-              </button>
-
-              <button
-                onClick={() =>
-                  router.push('/accounting')
-                }
-                className="bg-amber-400 border border-amber-500 text-zinc-900 hover:bg-amber-500 transition-colors px-4 py-2.5 rounded-xl text-sm font-semibold"
-              >
-
-                Supplier
-
-              </button>
-
-              <button
-                onClick={async () => {
-
-                  await supabase.auth.signOut()
-
-                  router.push('/login')
-
-                }}
-                className="bg-white border border-zinc-200 text-zinc-600 hover:bg-red-50 hover:border-red-200 hover:text-red-600 transition-colors px-4 py-2.5 rounded-xl text-sm font-semibold"
-              >
-
-                Logout
-
-              </button>
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="w-5 h-5">
+                <rect x="3" y="7" width="18" height="13" rx="2" />
+                <path d="M3 11h18M9 7V5a3 3 0 0 1 6 0v2" />
+              </svg>
 
             </div>
 
-            <div className="bg-white rounded-2xl shadow-sm border border-zinc-200 border-l-4 border-l-zinc-900 px-6 py-4 min-w-[220px]">
-
-              <p className="text-sm text-zinc-500">
-
-                Total Inventory Cost
-
-              </p>
-
-              <h2 className="text-3xl font-bold tracking-tight mt-1 tabular-nums">
-
-                Rs. {totalInventoryCost.toLocaleString()}
-
-              </h2>
-
-            </div>
+            <p className="text-xs text-zinc-500">Total Units in Stock</p>
+            <p className="text-2xl font-bold tracking-tight mt-1 tabular-nums text-zinc-900">{totalUnitsInStock.toLocaleString('en-IN')}</p>
+            <p className="text-xs text-zinc-400 mt-0.5">{productsInStockCount} products carry stock</p>
 
           </div>
+
+          <div className="bg-white rounded-2xl shadow-sm border border-zinc-200 p-5">
+
+            <div className="w-10 h-10 rounded-xl bg-violet-100 text-violet-600 flex items-center justify-center mb-3">
+
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="w-5 h-5">
+                <rect x="4" y="4" width="12" height="12" rx="2" />
+                <path d="M8 16v2a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2v-8a2 2 0 0 0-2-2h-2" />
+              </svg>
+
+            </div>
+
+            <p className="text-xs text-zinc-500">Unique Products</p>
+            <p className="text-2xl font-bold tracking-tight mt-1 tabular-nums text-zinc-900">{uniqueProductGroupCount}</p>
+            <p className="text-xs text-zinc-400 mt-0.5">{products.length} variants total (by name, brand &amp; category)</p>
+
+          </div>
+
+          <button
+            onClick={() => router.push('/low-stock')}
+            className="bg-white rounded-2xl shadow-sm border border-zinc-200 p-5 text-left hover:bg-zinc-50 transition-colors"
+          >
+
+            <div className="w-10 h-10 rounded-xl bg-amber-100 text-amber-600 flex items-center justify-center mb-3">
+
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="w-5 h-5">
+                <path d="M12 9v4" strokeLinecap="round" />
+                <path d="M12 17h.01" strokeLinecap="round" />
+                <path d="M10.3 3.9L2.5 18a1 1 0 0 0 .9 1.5h17.2a1 1 0 0 0 .9-1.5L13.7 3.9a1 1 0 0 0-1.8 0z" strokeLinejoin="round" />
+              </svg>
+
+            </div>
+
+            <p className="text-xs text-zinc-500">Low Stock Items</p>
+            <p className="text-2xl font-bold tracking-tight mt-1 tabular-nums text-amber-600">{lowStockCount}</p>
+
+          </button>
+
+          <button
+            onClick={() => router.push('/low-stock')}
+            className="bg-white rounded-2xl shadow-sm border border-zinc-200 p-5 text-left hover:bg-zinc-50 transition-colors"
+          >
+
+            <div className="w-10 h-10 rounded-xl bg-red-100 text-red-600 flex items-center justify-center mb-3">
+
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="w-5 h-5">
+                <circle cx="12" cy="12" r="9" />
+                <path d="M9 9l6 6M15 9l-6 6" strokeLinecap="round" />
+              </svg>
+
+            </div>
+
+            <p className="text-xs text-zinc-500">Out of Stock Items</p>
+            <p className="text-2xl font-bold tracking-tight mt-1 tabular-nums text-red-600">{outOfStockCount}</p>
+
+          </button>
 
         </div>
 
@@ -1636,37 +1352,6 @@ export default function Home() {
               </button>
 
             </div>
-
-            <button
-              onClick={() =>
-                setShowCamera(
-                  !showCamera
-                )
-              }
-              className={`flex items-center justify-center gap-2 px-6 py-3 rounded-2xl font-semibold text-sm transition-colors ${showCamera
-                ? 'bg-zinc-900 text-white'
-                : 'bg-white border border-zinc-200 text-zinc-700 hover:bg-zinc-50'
-                }`}
-            >
-
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.8"
-                className="w-4 h-4"
-              >
-
-                <path d="M23 7l-7 5 7 5V7z" />
-
-                <rect x="1" y="5" width="15" height="14" rx="2" />
-
-              </svg>
-
-              {showCamera ? 'Hide Camera' : 'Camera Scanner'}
-
-            </button>
 
           </div>
 
@@ -2026,67 +1711,6 @@ export default function Home() {
                 )
               }
 
-              {showCamera && (
-
-                <div className="mt-6 overflow-hidden rounded-3xl border border-zinc-800 bg-black p-2">
-                  <div
-                    id="reader"
-                    className="w-full min-h-[550px]"
-                  ></div>
-                </div>
-
-              )}
-
-              <div className="mb-2 mt-4">
-
-                <label className="text-xs font-medium text-zinc-500 mb-1.5 block">
-
-                  Camera source
-
-                </label>
-
-                <select
-                  value={selectedCamera}
-                  onChange={(e) => {
-
-                    const cameraId =
-                      e.target.value
-
-                    setSelectedCamera(
-                      cameraId
-                    )
-
-                    localStorage.setItem(
-                      "selectedCamera",
-                      cameraId
-                    )
-
-                    window.location.reload()
-
-                  }}
-
-                  className="w-full bg-white border border-zinc-300 focus:ring-4 focus:ring-emerald-200 focus:border-emerald-500 outline-none rounded-2xl px-5 py-3.5 text-zinc-700 font-medium"
-                >
-
-                  {availableCameras.map(
-                    (camera) => (
-
-                      <option
-                        key={camera.id}
-                        value={camera.id}
-                      >
-
-                        {camera.label}
-
-                      </option>
-
-                    )
-                  )}
-
-                </select>
-
-              </div>
-
             </>
 
           )}
@@ -2408,279 +2032,13 @@ export default function Home() {
 
         </div>
 
-        {/* ANALYTICS */}
-
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-
-          {/* LOW STOCK */}
-
-          <div className="bg-white rounded-[28px] shadow-xl border border-zinc-200 p-6">
-
-            <div className="flex items-center justify-between mb-5">
-
-              <h2 className="text-3xl font-bold">
-
-                Low Stock Products
-
-              </h2>
-
-              <div className="flex gap-2">
-
-                <button
-                  onClick={exportLowStockToExcel}
-                  className="bg-green-600 text-white px-4 py-2 rounded-2xl font-bold"
-                >
-
-                  Export
-
-                </button>
-
-                <button
-                  onClick={() =>
-                    setShowAllLowStock(
-                      !showAllLowStock
-                    )
-                  }
-                  className="bg-red-600 text-white px-4 py-2 rounded-2xl font-bold"
-                >
-
-                  {showAllLowStock
-                    ? 'Show 5'
-                    : 'Show All'}
-
-                </button>
-
-              </div>
-
-            </div>
-
-            <div className="space-y-4 max-h-[500px] overflow-y-auto">
-
-              {(showAllLowStock
-                ? lowStockProducts
-                : lowStockProducts.slice(
-                  0,
-                  5
-                )
-              ).map(
-                (product) => (
-
-                  <div
-                    key={product.id}
-                    className="border rounded-2xl p-4 flex gap-4"
-                  >
-
-                    {product.image_url ? (
-
-                      <img
-                        src={product.image_url}
-                        alt=""
-                        className="w-16 h-16 rounded-xl object-cover border flex-shrink-0"
-                      />
-
-                    ) : (
-
-                      <div className="w-16 h-16 bg-gray-200 rounded-xl flex-shrink-0" />
-
-                    )}
-
-                    <div className="flex-1 min-w-0">
-
-                      <h3 className="font-bold text-xl">
-
-                        {
-                          product.product_name
-                        }
-
-                      </h3>
-
-                      <p className="text-sm text-zinc-500 mt-1">
-
-                        {product.category}
-
-                        {product.brand && ` \u00b7 ${product.brand}`}
-
-                        {product.shade && ` \u00b7 ${product.shade}`}
-
-                      </p>
-
-                      <p className="mt-2">
-
-                        Stock:
-                        {' '}
-                        <span className="text-red-600 font-bold">
-
-                          {
-                            product.current_stock
-                          }
-
-                        </span>
-
-                        {' '}
-
-                        <span className="text-xs text-zinc-400">
-
-                          (reorder below{' '}
-                          {Math.ceil(
-                            product.reorderPoint
-                          )}
-                          )
-
-                        </span>
-
-                      </p>
-
-                    </div>
-
-                  </div>
-
-                )
-              )}
-
-            </div>
-
-          </div>
-
-          {/* TOP SELLING */}
-
-          <div className="bg-white rounded-[28px] shadow-xl border border-zinc-200 p-6">
-
-            <div className="flex items-center justify-between mb-5">
-
-              <h2 className="text-3xl font-bold">
-
-                Top Selling Products
-
-              </h2>
-
-              <div className="flex gap-2">
-
-                <button
-                  onClick={exportTopSellingToExcel}
-                  className="bg-green-600 text-white px-4 py-2 rounded-2xl font-bold"
-                >
-
-                  Export
-
-                </button>
-
-                <button
-                  onClick={() =>
-                    setShowAllTopSelling(
-                      !showAllTopSelling
-                    )
-                  }
-                  className="bg-green-600 text-white px-4 py-2 rounded-2xl font-bold"
-                >
-
-                  {showAllTopSelling
-                    ? 'Show Top 5'
-                    : 'Show Top 20'}
-
-                </button>
-
-              </div>
-
-            </div>
-
-            <div className="space-y-4 max-h-[500px] overflow-y-auto">
-
-              {topSellingProducts
-                .slice(
-                  0,
-                  showAllTopSelling
-                    ? 20
-                    : 5
-                )
-                .map(
-                  (
-                    product,
-                    index
-                  ) => (
-
-                    <div
-                      key={product.id}
-                      className="border rounded-2xl p-4 flex items-center justify-between gap-4"
-                    >
-
-                      <div className="flex gap-4 min-w-0">
-
-                        {product.image_url ? (
-
-                          <img
-                            src={product.image_url}
-                            alt=""
-                            className="w-16 h-16 rounded-xl object-cover border flex-shrink-0"
-                          />
-
-                        ) : (
-
-                          <div className="w-16 h-16 bg-gray-200 rounded-xl flex-shrink-0" />
-
-                        )}
-
-                        <div className="min-w-0">
-
-                          <h3 className="font-bold text-xl">
-
-                            {
-                              product.product_name
-                            }
-
-                          </h3>
-
-                          <p className="text-sm text-zinc-500 mt-1">
-
-                            {product.category}
-
-                            {product.brand && ` \u00b7 ${product.brand}`}
-
-                            {product.shade && ` \u00b7 ${product.shade}`}
-
-                          </p>
-
-                          <p className="mt-2">
-
-                            Remaining:
-                            {' '}
-                            <span className="text-green-600 font-bold">
-
-                              {
-                                product.current_stock
-                              }
-
-                            </span>
-
-                          </p>
-
-                        </div>
-
-                      </div>
-
-                      <div className="w-12 h-12 bg-zinc-900 hover:bg-zinc-800 hover:scale-105 transition-all duration-200 text-white rounded-full flex items-center justify-center font-bold text-xl flex-shrink-0">
-
-                        {index + 1}
-
-                      </div>
-
-                    </div>
-
-                  )
-                )}
-
-            </div>
-
-          </div>
-
-        </div>
-
         {/* ADD PRODUCT */}
 
         <div className="bg-white rounded-[28px] shadow-xl border border-zinc-200 p-8">
 
           <h2 className="text-4xl font-bold mb-8">
 
-            Add Product
+            Add Stock
 
           </h2>
 

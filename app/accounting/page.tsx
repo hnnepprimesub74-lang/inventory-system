@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { supabase } from '../../lib/supabase'
 import * as XLSX from 'xlsx'
 import { saveAs } from 'file-saver'
+import MonthPicker from '../../components/MonthPicker'
 
 function normalizeName(name: any) {
   return (name || '').toString().trim().toLowerCase()
@@ -222,7 +223,7 @@ export default function AccountingPage() {
 
   return (
 
-    <div className="min-h-screen bg-zinc-100 p-6 text-black">
+    <div className="text-black">
 
       <div className="max-w-7xl mx-auto space-y-6">
 
@@ -232,7 +233,7 @@ export default function AccountingPage() {
 
             <h1 className="text-3xl font-bold tracking-tight text-zinc-900">
 
-              Accounting
+              Supplier Accounting
 
             </h1>
 
@@ -244,18 +245,14 @@ export default function AccountingPage() {
 
           </div>
 
-          <button
-            onClick={() => router.push('/')}
-            className="bg-white border border-zinc-200 text-zinc-700 px-5 py-3 rounded-2xl font-bold hover:bg-zinc-50"
-          >
-
-            Back to Dashboard
-
-          </button>
+        
 
         </div>
 
-        <div className="bg-white rounded-2xl shadow-sm border border-zinc-200 border-l-4 border-l-zinc-900 px-6 py-4 min-w-[220px] inline-block">
+        <button
+          onClick={() => router.push('/accounting/lifetime-purchase')}
+          className="bg-white rounded-2xl shadow-sm border border-zinc-200 border-l-4 border-l-zinc-900 px-6 py-4 min-w-[220px] inline-block text-left hover:bg-zinc-50 transition-colors"
+        >
 
           <p className="text-sm text-zinc-500">
 
@@ -269,7 +266,7 @@ export default function AccountingPage() {
 
           </h2>
 
-        </div>
+        </button>
 
         <div className="bg-white rounded-[28px] shadow-xl border border-zinc-200 p-6">
 
@@ -412,12 +409,7 @@ export default function AccountingPage() {
 
             <div className="flex items-center gap-3">
 
-              <input
-                type="month"
-                value={reportMonth}
-                onChange={(e) => setReportMonth(e.target.value)}
-                className="border border-zinc-300 rounded-xl px-4 py-2.5"
-              />
+              <MonthPicker value={reportMonth} onChange={setReportMonth} />
 
               <button
                 onClick={exportMonthlyReport}

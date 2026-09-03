@@ -186,7 +186,7 @@ export default function StockLogPage() {
 
   return (
 
-    <div className="min-h-screen bg-zinc-100 p-6 text-black">
+    <div className="text-black">
 
       <div className="max-w-7xl mx-auto space-y-6">
 
