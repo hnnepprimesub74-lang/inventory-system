@@ -1530,6 +1530,17 @@ export default function Home() {
               </button>
 
               <button
+                onClick={() =>
+                  router.push('/accounting')
+                }
+                className="bg-amber-400 border border-amber-500 text-zinc-900 hover:bg-amber-500 transition-colors px-4 py-2.5 rounded-xl text-sm font-semibold"
+              >
+
+                Supplier
+
+              </button>
+
+              <button
                 onClick={async () => {
 
                   await supabase.auth.signOut()
