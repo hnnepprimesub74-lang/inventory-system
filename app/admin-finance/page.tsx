@@ -8,6 +8,8 @@ import ConfirmDialog from '../../components/ConfirmDialog'
 import { useViewer } from '../../components/ViewerContext'
 import SourceSelect, { CashSource, defaultSourceId } from '../../components/SourceSelect'
 
+const DEFAULT_ADMIN_SALARY = 35000
+
 function currentMonth() {
   return new Date().toISOString().slice(0, 7)
 }
@@ -30,16 +32,16 @@ function rateForMonth(rates: any[], month: string) {
     .filter((r) => r.effective_month <= month)
     .sort((a, b) => b.effective_month.localeCompare(a.effective_month))
 
-  return applicable[0]?.rate ?? 0
+  return applicable[0]?.rate ?? DEFAULT_ADMIN_SALARY
 
 }
 
-export default function RentPage() {
+export default function AdminFinancePage() {
 
   const router = useRouter()
   const isViewer = useViewer()
 
-  const [rentRates, setRentRates] = useState<any[]>([])
+  const [salaryRates, setSalaryRates] = useState<any[]>([])
   const [payments, setPayments] = useState<any[]>([])
   const [sources, setSources] = useState<CashSource[]>([])
   const [loading, setLoading] = useState(true)
@@ -96,13 +98,13 @@ export default function RentPage() {
 
     const { data: ratesData } =
       await supabase
-        .from('rent_rates')
+        .from('admin_salary_rates')
         .select('*')
         .order('effective_month', { ascending: false })
 
     const { data: paymentsData } =
       await supabase
-        .from('rent_payments')
+        .from('admin_salary')
         .select('*')
         .order('month', { ascending: false })
 
@@ -112,7 +114,7 @@ export default function RentPage() {
     const rates = ratesData || []
     const sourceRows = sourceData || []
 
-    setRentRates(rates)
+    setSalaryRates(rates)
     setPayments(paymentsData || [])
     setSources(sourceRows)
     setLoading(false)
@@ -126,7 +128,7 @@ export default function RentPage() {
 
     setPayMonth(month)
 
-    const applicable = rateForMonth(rentRates, month)
+    const applicable = rateForMonth(salaryRates, month)
 
     if (applicable) {
       setPayAmount(String(applicable))
@@ -142,7 +144,7 @@ export default function RentPage() {
     setSavingRate(true)
 
     const { error } = await supabase
-      .from('rent_rates')
+      .from('admin_salary_rates')
       .upsert(
         { effective_month: newRateMonth, rate: amount },
         { onConflict: 'effective_month' }
@@ -152,7 +154,7 @@ export default function RentPage() {
 
     if (error) {
 
-      alert('Failed to set rent rate: ' + error.message)
+      alert('Failed to set admin salary: ' + error.message)
       return
 
     }
@@ -182,7 +184,7 @@ export default function RentPage() {
 
     setSaving(true)
 
-    const { error } = await supabase.from('rent_payments').insert({
+    const { error } = await supabase.from('admin_salary').insert({
       month: payMonth,
       amount,
       paid_date: payDate || new Date().toISOString().slice(0, 10),
@@ -194,7 +196,7 @@ export default function RentPage() {
 
     if (error) {
 
-      alert('Failed to add rent payment: ' + error.message)
+      alert('Failed to add admin salary payment: ' + error.message)
       return
 
     }
@@ -229,7 +231,7 @@ export default function RentPage() {
     setSavingEdit(true)
 
     const { error } = await supabase
-      .from('rent_payments')
+      .from('admin_salary')
       .update({
         amount,
         paid_date: editDate || new Date().toISOString().slice(0, 10),
@@ -259,7 +261,7 @@ export default function RentPage() {
     setDeleting(true)
 
     const { error } = await supabase
-      .from('rent_payments')
+      .from('admin_salary')
       .delete()
       .eq('id', deleteTarget.id)
 
@@ -281,9 +283,9 @@ export default function RentPage() {
 
   const thisMonth = currentMonth()
   const paidThisMonth = payments.some((p) => p.month === thisMonth)
-  const currentRate = rateForMonth(rentRates, thisMonth)
+  const currentRate = rateForMonth(salaryRates, thisMonth)
 
-  const rentForFilterMonth = payments
+  const salaryForFilterMonth = payments
     .filter((p) => p.month === filterMonth)
     .reduce((s, p) => s + Number(p.amount || 0), 0)
 
@@ -332,13 +334,13 @@ export default function RentPage() {
 
             <h1 className="text-3xl font-bold tracking-tight text-zinc-900">
 
-              Rent
+              Admin Finance
 
             </h1>
 
             <p className="text-sm text-zinc-500 mt-1">
 
-              Monthly rent rate and payments
+              Admin's monthly salary rate and payments — defaults to Rs. {DEFAULT_ADMIN_SALARY.toLocaleString('en-IN')}, changeable per month
 
             </p>
 
@@ -350,14 +352,14 @@ export default function RentPage() {
 
           <div className="bg-white rounded-2xl shadow-sm border border-zinc-200 border-l-4 border-l-zinc-900 px-6 py-4">
 
-            <p className="text-sm text-zinc-500">Rent Rate — {monthLabel(thisMonth)}</p>
+            <p className="text-sm text-zinc-500">Admin Salary — {monthLabel(thisMonth)}</p>
             <h2 className="text-2xl font-bold tracking-tight mt-1 tabular-nums">Rs. {currentRate.toLocaleString('en-IN')}</h2>
 
           </div>
 
           <div className="bg-white rounded-2xl shadow-sm border border-zinc-200 border-l-4 border-l-green-600 px-6 py-4">
 
-            <p className="text-sm text-zinc-500">Total Rent Paid (Lifetime)</p>
+            <p className="text-sm text-zinc-500">Total Paid (Lifetime)</p>
             <h2 className="text-2xl font-bold tracking-tight mt-1 tabular-nums text-green-600">Rs. {totalPaidLifetime.toLocaleString('en-IN')}</h2>
 
           </div>
@@ -377,11 +379,11 @@ export default function RentPage() {
 
           <div className="bg-white rounded-[28px] shadow-xl border border-zinc-200 p-6">
 
-            <h3 className="font-bold text-lg text-zinc-900 mb-4">Set Monthly Rent</h3>
+            <h3 className="font-bold text-lg text-zinc-900 mb-4">Set Monthly Admin Salary</h3>
 
             <p className="text-xs text-zinc-400 mb-4">
 
-              Set the rent rate effective from a given month onward — e.g. Rs. 10,000 from Jan 2026, then Rs. 12,000 from Oct 2026 onward.
+              Defaults to Rs. {DEFAULT_ADMIN_SALARY.toLocaleString('en-IN')}. Set a new rate effective from a given month onward — e.g. Rs. 40,000 from Oct 2026 onward.
 
             </p>
 
@@ -393,8 +395,8 @@ export default function RentPage() {
                 type="number"
                 value={newRateAmount}
                 onChange={(e) => setNewRateAmount(e.target.value)}
-                placeholder="Rent amount"
-                className="border border-zinc-300 rounded-xl px-4 py-2.5 w-48"
+                placeholder={`Salary amount (default Rs. ${DEFAULT_ADMIN_SALARY.toLocaleString('en-IN')})`}
+                className="border border-zinc-300 rounded-xl px-4 py-2.5 w-64"
               />
 
               <button
@@ -428,7 +430,7 @@ export default function RentPage() {
 
           <div className="bg-white rounded-[28px] shadow-xl border border-zinc-200 p-6">
 
-            <h3 className="font-bold text-lg text-zinc-900 mb-4">Add Rent Payment</h3>
+            <h3 className="font-bold text-lg text-zinc-900 mb-4">Add Admin Salary Payment</h3>
 
             <div className="flex gap-3 flex-wrap">
 
@@ -501,14 +503,14 @@ export default function RentPage() {
             <div className="bg-indigo-50 border border-indigo-100 rounded-2xl px-5 py-4 inline-block">
 
               <p className="text-sm text-zinc-500">Rate for {monthLabel(filterMonth)}</p>
-              <p className="text-2xl font-bold tabular-nums text-indigo-700 mt-1">Rs. {rateForMonth(rentRates, filterMonth).toLocaleString('en-IN')}</p>
+              <p className="text-2xl font-bold tabular-nums text-indigo-700 mt-1">Rs. {rateForMonth(salaryRates, filterMonth).toLocaleString('en-IN')}</p>
 
             </div>
 
             <div className="bg-green-50 border border-green-100 rounded-2xl px-5 py-4 inline-block">
 
               <p className="text-sm text-zinc-500">Paid for {monthLabel(filterMonth)}</p>
-              <p className="text-2xl font-bold tabular-nums text-green-700 mt-1">Rs. {rentForFilterMonth.toLocaleString('en-IN')}</p>
+              <p className="text-2xl font-bold tabular-nums text-green-700 mt-1">Rs. {salaryForFilterMonth.toLocaleString('en-IN')}</p>
 
             </div>
 
@@ -522,7 +524,7 @@ export default function RentPage() {
 
           {monthGroups.length === 0 ? (
 
-            <p className="text-zinc-500">No rent payments recorded yet.</p>
+            <p className="text-zinc-500">No admin salary payments recorded yet.</p>
 
           ) : (
 
@@ -719,8 +721,8 @@ export default function RentPage() {
 
       <ConfirmDialog
         open={confirmNewRate}
-        title="Set Rent Rate?"
-        message={`Set the rent rate to Rs. ${(Number(newRateAmount) || 0).toLocaleString('en-IN')}, effective from ${monthLabel(newRateMonth)} onward?`}
+        title="Set Admin Salary?"
+        message={`Set the admin salary to Rs. ${(Number(newRateAmount) || 0).toLocaleString('en-IN')}, effective from ${monthLabel(newRateMonth)} onward?`}
         confirmLabel="Yes, Set Rate"
         onConfirm={confirmAddRate}
         onCancel={() => setConfirmNewRate(false)}
@@ -729,7 +731,7 @@ export default function RentPage() {
       <ConfirmDialog
         open={!!deleteTarget}
         title="Delete this payment?"
-        message={`Delete the Rs. ${Number(deleteTarget?.amount || 0).toLocaleString('en-IN')} rent payment for ${monthLabel(deleteTarget?.month || '')}${deleteTarget?.paid_date ? ' (' + deleteTarget.paid_date + ')' : ''}? This cannot be undone.`}
+        message={`Delete the Rs. ${Number(deleteTarget?.amount || 0).toLocaleString('en-IN')} admin salary payment for ${monthLabel(deleteTarget?.month || '')}${deleteTarget?.paid_date ? ' (' + deleteTarget.paid_date + ')' : ''}? This cannot be undone.`}
         confirmLabel={deleting ? 'Deleting...' : 'Delete'}
         danger
         onConfirm={confirmDeletePayment}

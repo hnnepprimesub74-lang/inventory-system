@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { supabase } from '../../lib/supabase'
 import MonthPicker from '../../components/MonthPicker'
 import { useViewer } from '../../components/ViewerContext'
+import SourceSelect, { CashSource, defaultSourceId } from '../../components/SourceSelect'
 import * as XLSX from 'xlsx'
 import { saveAs } from 'file-saver'
 
@@ -31,6 +32,7 @@ export default function RefundsPage() {
 
   const [products, setProducts] = useState<any[]>([])
   const [refunds, setRefunds] = useState<any[]>([])
+  const [sources, setSources] = useState<CashSource[]>([])
   const [loading, setLoading] = useState(true)
 
   const [filterStore, setFilterStore] = useState('')
@@ -43,6 +45,7 @@ export default function RefundsPage() {
   const [reason, setReason] = useState('')
   const [store, setStore] = useState('')
   const [refundDate, setRefundDate] = useState('')
+  const [refundSourceId, setRefundSourceId] = useState('')
   const [saving, setSaving] = useState(false)
 
   useEffect(() => {
@@ -79,9 +82,17 @@ export default function RefundsPage() {
         .select('*')
         .order('refund_date', { ascending: false })
 
+    const { data: sourceData } =
+      await supabase.from('cash_sources').select('*').order('name')
+
+    const sourceRows = sourceData || []
+
     setProducts(productsData || [])
     setRefunds(refundsData || [])
+    setSources(sourceRows)
     setLoading(false)
+
+    setRefundSourceId((prev) => prev || defaultSourceId(sourceRows))
 
   }
 
@@ -190,6 +201,7 @@ export default function RefundsPage() {
       reason: reason.trim() || null,
       store: store.trim() || null,
       refund_date: refundDate || new Date().toISOString().slice(0, 10),
+      source_id: refundSourceId || defaultSourceId(sources),
     })
 
     setSaving(false)
@@ -234,6 +246,7 @@ export default function RefundsPage() {
         Weight: product?.weight || '',
         Store: r.store || '',
         Reason: r.reason || '',
+        Source: sources.find((s) => s.id === r.source_id)?.name || '',
         Amount: Number(r.amount || 0),
       }
 
@@ -506,6 +519,7 @@ export default function RefundsPage() {
                     <th className="pb-3 pr-4 text-sm font-medium text-zinc-500">Weight</th>
                     <th className="pb-3 pr-4 text-sm font-medium text-zinc-500">Store</th>
                     <th className="pb-3 pr-4 text-sm font-medium text-zinc-500">Reason</th>
+                    <th className="pb-3 pr-4 text-sm font-medium text-zinc-500">Source</th>
                     <th className="pb-3 text-sm font-medium text-zinc-500 text-right">Amount</th>
 
                   </tr>
@@ -528,6 +542,9 @@ export default function RefundsPage() {
                         <td className="py-3 pr-4 text-sm text-zinc-600">{product?.weight || '—'}</td>
                         <td className="py-3 pr-4 text-sm text-zinc-600">{r.store || '—'}</td>
                         <td className="py-3 pr-4 text-sm text-zinc-600">{r.reason || '—'}</td>
+                        <td className="py-3 pr-4 text-sm text-zinc-600">
+                          {sources.find((s) => s.id === r.source_id)?.name || '—'}
+                        </td>
                         <td className="py-3 text-right tabular-nums font-semibold text-red-600">Rs. {Number(r.amount).toLocaleString('en-IN')}</td>
 
                       </tr>
@@ -685,6 +702,17 @@ export default function RefundsPage() {
                 rows={2}
                 className="w-full border border-zinc-300 rounded-xl px-4 py-2.5 resize-none"
               />
+
+              <div>
+                <label className="text-xs font-medium text-zinc-500 mb-1 block">Source</label>
+                <SourceSelect
+                  sources={sources}
+                  value={refundSourceId}
+                  onChange={setRefundSourceId}
+                  onSourceAdded={(s) => setSources((prev) => [...prev, s])}
+                  className="w-full border border-zinc-300 rounded-xl px-4 py-2.5"
+                />
+              </div>
 
             </div>
 

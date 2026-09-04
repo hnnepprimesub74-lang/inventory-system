@@ -5,6 +5,7 @@ import { useRouter, useParams } from 'next/navigation'
 import { supabase } from '../../../lib/supabase'
 import ConfirmDialog from '../../../components/ConfirmDialog'
 import { useViewer } from '../../../components/ViewerContext'
+import SourceSelect, { CashSource, defaultSourceId } from '../../../components/SourceSelect'
 
 function normalizeName(name: any) {
   return (name || '').toString().trim().toLowerCase()
@@ -20,6 +21,7 @@ export default function SupplierLedgerPage() {
   const [supplier, setSupplier] = useState<any>(null)
   const [stockTxns, setStockTxns] = useState<any[]>([])
   const [payments, setPayments] = useState<any[]>([])
+  const [sources, setSources] = useState<CashSource[]>([])
   const [loading, setLoading] = useState(true)
 
   const [openingBalanceInput, setOpeningBalanceInput] = useState('')
@@ -30,6 +32,7 @@ export default function SupplierLedgerPage() {
   const [paymentAmount, setPaymentAmount] = useState('')
   const [paymentDate, setPaymentDate] = useState('')
   const [paymentNote, setPaymentNote] = useState('')
+  const [paymentSourceId, setPaymentSourceId] = useState('')
   const [savingPayment, setSavingPayment] = useState(false)
 
   useEffect(() => {
@@ -85,11 +88,19 @@ export default function SupplierLedgerPage() {
 
     }
 
+    const { data: sourceData } =
+      await supabase.from('cash_sources').select('*').order('name')
+
+    const sourceRows = sourceData || []
+
     setSupplier(supplierData || null)
     setOpeningBalanceInput(String(supplierData?.opening_balance || 0))
     setStockTxns(txnData)
     setPayments(paymentData || [])
+    setSources(sourceRows)
     setLoading(false)
+
+    setPaymentSourceId((prev) => prev || defaultSourceId(sourceRows))
 
   }
 
@@ -141,6 +152,7 @@ export default function SupplierLedgerPage() {
       amount,
       note: paymentNote.trim() || null,
       payment_date: paymentDate || new Date().toISOString().slice(0, 10),
+      source_id: paymentSourceId || defaultSourceId(sources),
     })
 
     setSavingPayment(false)
@@ -169,6 +181,7 @@ export default function SupplierLedgerPage() {
     description: string
     debit: number
     credit: number
+    source: string
   }
 
   const ledgerEntries: LedgerEntry[] = []
@@ -180,6 +193,7 @@ export default function SupplierLedgerPage() {
       description: 'Opening Balance (Old Pending Payment)',
       debit: openingBalance,
       credit: 0,
+      source: '',
     })
 
   }
@@ -191,6 +205,7 @@ export default function SupplierLedgerPage() {
       description: 'Stock Purchase (from Stock Log)',
       debit: txnAmount(t),
       credit: 0,
+      source: '',
     })
 
   })
@@ -202,6 +217,7 @@ export default function SupplierLedgerPage() {
       description: p.note || 'Payment',
       debit: 0,
       credit: Number(p.amount || 0),
+      source: sources.find((s) => s.id === p.source_id)?.name || '',
     })
 
   })
@@ -400,6 +416,14 @@ export default function SupplierLedgerPage() {
                 className="border border-zinc-300 rounded-xl px-4 py-2.5 flex-1 min-w-[180px]"
               />
 
+              <SourceSelect
+                sources={sources}
+                value={paymentSourceId}
+                onChange={setPaymentSourceId}
+                onSourceAdded={(s) => setSources((prev) => [...prev, s])}
+                className="border border-zinc-300 rounded-xl px-4 py-2.5"
+              />
+
               <button
                 onClick={addPayment}
                 disabled={savingPayment}
@@ -430,6 +454,7 @@ export default function SupplierLedgerPage() {
 
                   <th className="pb-3 pr-4 text-sm font-medium text-zinc-500">Date</th>
                   <th className="pb-3 pr-4 text-sm font-medium text-zinc-500">Description</th>
+                  <th className="pb-3 pr-4 text-sm font-medium text-zinc-500">Source</th>
                   <th className="pb-3 pr-4 text-sm font-medium text-zinc-500 text-right">Debit</th>
                   <th className="pb-3 pr-4 text-sm font-medium text-zinc-500 text-right">Credit</th>
                   <th className="pb-3 text-sm font-medium text-zinc-500 text-right">Balance</th>
@@ -443,7 +468,7 @@ export default function SupplierLedgerPage() {
                 {ledgerWithBalance.filter((e) => e.debit !== 0 || e.credit !== 0).length === 0 ? (
 
                   <tr>
-                    <td colSpan={5} className="py-4 text-zinc-500">No entries yet.</td>
+                    <td colSpan={6} className="py-4 text-zinc-500">No entries yet.</td>
                   </tr>
 
                 ) : ledgerWithBalance
@@ -454,6 +479,7 @@ export default function SupplierLedgerPage() {
 
                       <td className="py-3 pr-4 text-sm text-zinc-600">{e.date}</td>
                       <td className="py-3 pr-4 text-sm text-zinc-600">{e.description}</td>
+                      <td className="py-3 pr-4 text-sm text-zinc-600">{e.source || '—'}</td>
                       <td className="py-3 pr-4 text-right tabular-nums text-red-600">
                         {e.debit ? `Rs. ${e.debit.toLocaleString()}` : '—'}
                       </td>

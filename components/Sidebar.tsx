@@ -144,8 +144,13 @@ function Icon({ name }: { name: string }) {
 }
 
 const NAV_LINKS = [
+  // Inventory
   { label: 'Home', href: '/', icon: 'home', isActive: (p: string) => p === '/' },
   { label: 'Stock Log', href: '/stock-log', icon: 'box', isActive: (p: string) => p === '/stock-log' },
+  { label: 'Low Stock', href: '/low-stock', icon: 'alert', isActive: (p: string) => p === '/low-stock' },
+  { label: 'Most Selling', href: '/most-selling', icon: 'trending', isActive: (p: string) => p === '/most-selling' },
+
+  // Finance
   {
     label: 'Supplier',
     href: '/accounting',
@@ -173,6 +178,12 @@ const NAV_LINKS = [
     isActive: (p: string) => p === '/rent',
   },
   {
+    label: 'Admin Finance',
+    href: '/admin-finance',
+    icon: 'badge',
+    isActive: (p: string) => p === '/admin-finance',
+  },
+  {
     label: 'Refunds',
     href: '/refunds',
     icon: 'refund',
@@ -197,13 +208,17 @@ const NAV_LINKS = [
     isActive: (p: string) => p === '/misc-expenses',
   },
   {
+    label: 'Loan',
+    href: '/loan',
+    icon: 'wallet',
+    isActive: (p: string) => p === '/loan',
+  },
+  {
     label: 'Finance Report',
     href: '/finance-report',
     icon: 'report',
     isActive: (p: string) => p === '/finance-report',
   },
-  { label: 'Low Stock', href: '/low-stock', icon: 'alert', isActive: (p: string) => p === '/low-stock' },
-  { label: 'Most Selling', href: '/most-selling', icon: 'trending', isActive: (p: string) => p === '/most-selling' },
 ]
 
 export default function Sidebar({
@@ -270,6 +285,7 @@ export default function Sidebar({
 
               <p className="font-bold text-zinc-900 leading-tight truncate">Cloud Inventory</p>
               <p className="text-xs text-zinc-400 leading-tight">ERP System</p>
+              <p className="text-[10px] font-bold text-indigo-600 leading-tight mt-0.5">Developed By Kumar</p>
 
             </div>
 

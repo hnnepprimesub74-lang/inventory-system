@@ -6,6 +6,7 @@ import { supabase } from '../../../lib/supabase'
 import MonthPicker from '../../../components/MonthPicker'
 import ConfirmDialog from '../../../components/ConfirmDialog'
 import { useViewer } from '../../../components/ViewerContext'
+import SourceSelect, { CashSource, defaultSourceId } from '../../../components/SourceSelect'
 
 function currentMonth() {
   return new Date().toISOString().slice(0, 7)
@@ -31,6 +32,7 @@ export default function StaffLedgerPage() {
   const [staffMember, setStaffMember] = useState<any>(null)
   const [salaryRecords, setSalaryRecords] = useState<any[]>([])
   const [salaryRates, setSalaryRates] = useState<any[]>([])
+  const [sources, setSources] = useState<CashSource[]>([])
   const [loading, setLoading] = useState(true)
 
   const [newRateMonth, setNewRateMonth] = useState(currentMonth())
@@ -42,6 +44,7 @@ export default function StaffLedgerPage() {
   const [salaryAmount, setSalaryAmount] = useState('')
   const [salaryPaidDate, setSalaryPaidDate] = useState('')
   const [salaryNote, setSalaryNote] = useState('')
+  const [salarySourceId, setSalarySourceId] = useState('')
   const [saving, setSaving] = useState(false)
 
   const [expandedMonth, setExpandedMonth] = useState<string | null>(null)
@@ -90,14 +93,20 @@ export default function StaffLedgerPage() {
         .eq('staff_id', staffId)
         .order('effective_month', { ascending: false })
 
+    const { data: sourceData } =
+      await supabase.from('cash_sources').select('*').order('name')
+
     const rates = rateData || []
+    const sourceRows = sourceData || []
 
     setStaffMember(staffData || null)
     setSalaryRecords(salaryData || [])
     setSalaryRates(rates)
+    setSources(sourceRows)
     setLoading(false)
 
     setSalaryAmount((prev) => prev || String(rateForMonth(rates, salaryMonth) || ''))
+    setSalarySourceId((prev) => prev || defaultSourceId(sourceRows))
 
   }
 
@@ -167,6 +176,7 @@ export default function StaffLedgerPage() {
       amount,
       paid_date: salaryPaidDate || new Date().toISOString().slice(0, 10),
       note: salaryNote.trim() || null,
+      source_id: salarySourceId || defaultSourceId(sources),
     })
 
     setSaving(false)
@@ -369,6 +379,14 @@ export default function StaffLedgerPage() {
                 className="border border-zinc-300 rounded-xl px-4 py-2.5 flex-1 min-w-[180px]"
               />
 
+              <SourceSelect
+                sources={sources}
+                value={salarySourceId}
+                onChange={setSalarySourceId}
+                onSourceAdded={(s) => setSources((prev) => [...prev, s])}
+                className="border border-zinc-300 rounded-xl px-4 py-2.5"
+              />
+
               <button
                 onClick={addSalaryRecord}
                 disabled={saving}
@@ -454,6 +472,7 @@ export default function StaffLedgerPage() {
 
                               <th className="py-2.5 px-5 text-xs font-medium text-zinc-500">Paid Date</th>
                               <th className="py-2.5 px-5 text-xs font-medium text-zinc-500">Note</th>
+                              <th className="py-2.5 px-5 text-xs font-medium text-zinc-500">Source</th>
                               <th className="py-2.5 px-5 text-xs font-medium text-zinc-500 text-right">Amount</th>
 
                             </tr>
@@ -468,6 +487,9 @@ export default function StaffLedgerPage() {
 
                                 <td className="py-2.5 px-5 text-sm text-zinc-600">{r.paid_date}</td>
                                 <td className="py-2.5 px-5 text-sm text-zinc-600">{r.note || '—'}</td>
+                                <td className="py-2.5 px-5 text-sm text-zinc-600">
+                                  {sources.find((s) => s.id === r.source_id)?.name || '—'}
+                                </td>
                                 <td className="py-2.5 px-5 text-right tabular-nums font-semibold text-zinc-900">
                                   Rs. {Number(r.amount).toLocaleString('en-IN')}
                                 </td>

@@ -13,6 +13,7 @@ export default function StockLogPage() {
   const [products, setProducts] = useState<any[]>([])
   const [transactions, setTransactions] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
+  const [filterSeller, setFilterSeller] = useState('')
 
   useEffect(() => {
 
@@ -81,12 +82,20 @@ export default function StockLogPage() {
 
   lots.sort((a, b) => {
 
-    const da = a.stockDate || a.createdAt || ''
-    const db = b.stockDate || b.createdAt || ''
+    const da = a.createdAt || a.stockDate || ''
+    const db = b.createdAt || b.stockDate || ''
 
     return db.localeCompare(da)
 
   })
+
+  const sellers = Array.from(
+    new Set(lots.map((l) => l.seller).filter(Boolean))
+  ).sort()
+
+  const filteredLots = filterSeller
+    ? lots.filter((l) => l.seller === filterSeller)
+    : lots
 
   function buildExportRows(items: any[]) {
 
@@ -151,7 +160,9 @@ export default function StockLogPage() {
 
   function exportAllLogs() {
 
-    if (transactions.length === 0) {
+    const rows = filteredLots.flatMap((l) => l.items)
+
+    if (rows.length === 0) {
 
       alert('No stock-in records yet')
 
@@ -160,8 +171,8 @@ export default function StockLogPage() {
     }
 
     downloadWorkbook(
-      buildExportRows(transactions),
-      'stock-log.xlsx'
+      buildExportRows(rows),
+      filterSeller ? `stock-log-${filterSeller}.xlsx` : 'stock-log.xlsx'
     )
 
   }
@@ -232,15 +243,48 @@ export default function StockLogPage() {
 
         </div>
 
+        <div className="flex flex-wrap gap-3 items-center">
+
+          <label className="text-xs font-medium text-zinc-500">Seller</label>
+
+          <select
+            value={filterSeller}
+            onChange={(e) => setFilterSeller(e.target.value)}
+            className="border border-zinc-300 rounded-xl px-4 py-2.5 min-w-[200px]"
+          >
+
+            <option value="">All Sellers</option>
+
+            {sellers.map((s) => (
+              <option key={s} value={s}>{s}</option>
+            ))}
+
+          </select>
+
+          {filterSeller && (
+
+            <button
+              onClick={() => setFilterSeller('')}
+              className="bg-white border border-zinc-300 text-zinc-700 px-4 py-2.5 rounded-xl text-sm font-semibold hover:bg-zinc-50"
+            >
+
+              Clear Filter
+
+            </button>
+
+          )}
+
+        </div>
+
         {loading ? (
 
           <p className="text-zinc-500">Loading...</p>
 
-        ) : lots.length === 0 ? (
+        ) : filteredLots.length === 0 ? (
 
           <div className="bg-white rounded-[28px] shadow-xl border border-zinc-200 p-8 text-center text-zinc-500">
 
-            No stock has been added yet.
+            {lots.length === 0 ? 'No stock has been added yet.' : 'No stock lots from this seller.'}
 
           </div>
 
@@ -248,7 +292,7 @@ export default function StockLogPage() {
 
           <div className="space-y-5">
 
-            {lots.map((lot) => {
+            {filteredLots.map((lot) => {
 
               const totalQty = lot.items.reduce(
                 (s: number, i: any) => s + Number(i.quantity || 0),

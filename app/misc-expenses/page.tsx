@@ -7,6 +7,7 @@ import DatePicker from '../../components/DatePicker'
 import MonthPicker from '../../components/MonthPicker'
 import ConfirmDialog from '../../components/ConfirmDialog'
 import { useViewer } from '../../components/ViewerContext'
+import SourceSelect, { CashSource, defaultSourceId } from '../../components/SourceSelect'
 
 function todayISO() {
   return new Date().toISOString().slice(0, 10)
@@ -32,6 +33,7 @@ type EntryForm = {
   date: string
   amount: string
   remark: string
+  sourceId: string
 }
 
 export default function MiscExpensesPage() {
@@ -41,6 +43,7 @@ export default function MiscExpensesPage() {
 
   const [expenseTypes, setExpenseTypes] = useState<any[]>([])
   const [expenses, setExpenses] = useState<any[]>([])
+  const [sources, setSources] = useState<CashSource[]>([])
   const [loading, setLoading] = useState(true)
 
   const [showAddType, setShowAddType] = useState(false)
@@ -54,6 +57,7 @@ export default function MiscExpensesPage() {
   const [editDate, setEditDate] = useState('')
   const [editAmount, setEditAmount] = useState('')
   const [editRemark, setEditRemark] = useState('')
+  const [editSourceId, setEditSourceId] = useState('')
   const [savingEdit, setSavingEdit] = useState(false)
 
   const [deleteTarget, setDeleteTarget] = useState<any>(null)
@@ -85,7 +89,7 @@ export default function MiscExpensesPage() {
   }, [])
 
   function formFor(typeId: string): EntryForm {
-    return entryForms[typeId] || { date: todayISO(), amount: '', remark: '' }
+    return entryForms[typeId] || { date: todayISO(), amount: '', remark: '', sourceId: defaultSourceId(sources) }
   }
 
   function updateForm(typeId: string, patch: Partial<EntryForm>) {
@@ -108,8 +112,12 @@ export default function MiscExpensesPage() {
         .select('*')
         .order('expense_date', { ascending: false })
 
+    const { data: sourceData } =
+      await supabase.from('cash_sources').select('*').order('name')
+
     setExpenseTypes(typeData || [])
     setExpenses(expenseData || [])
+    setSources(sourceData || [])
     setLoading(false)
 
   }
@@ -174,6 +182,7 @@ export default function MiscExpensesPage() {
       expense_date: form.date || todayISO(),
       amount,
       remark: form.remark.trim() || null,
+      source_id: form.sourceId || defaultSourceId(sources),
     })
 
     setSavingTypeId(null)
@@ -187,7 +196,7 @@ export default function MiscExpensesPage() {
 
     setEntryForms((prev) => ({
       ...prev,
-      [typeId]: { date: form.date, amount: '', remark: '' },
+      [typeId]: { date: form.date, amount: '', remark: '', sourceId: form.sourceId },
     }))
 
     await load()
@@ -200,6 +209,7 @@ export default function MiscExpensesPage() {
     setEditDate(expense.expense_date)
     setEditAmount(String(expense.amount))
     setEditRemark(expense.remark || '')
+    setEditSourceId(expense.source_id || defaultSourceId(sources))
 
   }
 
@@ -222,6 +232,7 @@ export default function MiscExpensesPage() {
         expense_date: editDate || todayISO(),
         amount,
         remark: editRemark.trim() || null,
+        source_id: editSourceId || defaultSourceId(sources),
       })
       .eq('id', editingId)
 
@@ -388,6 +399,17 @@ export default function MiscExpensesPage() {
                       className="border border-zinc-300 rounded-xl px-4 py-2.5 flex-1 min-w-[180px]"
                     />
 
+                    <div>
+                      <label className="text-xs font-medium text-zinc-500 mb-1 block">Source</label>
+                      <SourceSelect
+                        sources={sources}
+                        value={form.sourceId}
+                        onChange={(id) => updateForm(type.id, { sourceId: id })}
+                        onSourceAdded={(s) => setSources((prev) => [...prev, s])}
+                        className="border border-zinc-300 rounded-xl px-4 py-2.5"
+                      />
+                    </div>
+
                     <button
                       onClick={() => addExpense(type.id)}
                       disabled={savingTypeId === type.id}
@@ -418,6 +440,7 @@ export default function MiscExpensesPage() {
 
                           <th className="pb-3 pr-4 text-sm font-medium text-zinc-500">Date</th>
                           <th className="pb-3 pr-4 text-sm font-medium text-zinc-500">Remark</th>
+                          <th className="pb-3 pr-4 text-sm font-medium text-zinc-500">Source</th>
                           <th className="pb-3 pr-4 text-sm font-medium text-zinc-500 text-right">Amount</th>
                           {!isViewer && (
                             <th className="pb-3 text-sm font-medium text-zinc-500 text-right">Actions</th>
@@ -445,6 +468,16 @@ export default function MiscExpensesPage() {
                                   onChange={(ev) => setEditRemark(ev.target.value)}
                                   placeholder="Remark"
                                   className="border border-zinc-300 rounded-lg px-3 py-1.5 text-sm w-full"
+                                />
+                              </td>
+
+                              <td className="py-2.5 pr-4">
+                                <SourceSelect
+                                  sources={sources}
+                                  value={editSourceId}
+                                  onChange={setEditSourceId}
+                                  onSourceAdded={(s) => setSources((prev) => [...prev, s])}
+                                  className="border border-zinc-300 rounded-lg px-3 py-1.5 text-sm"
                                 />
                               </td>
 
@@ -485,6 +518,9 @@ export default function MiscExpensesPage() {
 
                               <td className="py-3 pr-4 text-sm text-zinc-600">{e.expense_date}</td>
                               <td className="py-3 pr-4 text-sm text-zinc-600">{e.remark || '—'}</td>
+                              <td className="py-3 pr-4 text-sm text-zinc-600">
+                                {sources.find((s) => s.id === e.source_id)?.name || '—'}
+                              </td>
                               <td className="py-3 pr-4 text-right tabular-nums font-semibold text-zinc-900">
                                 Rs. {Number(e.amount).toLocaleString('en-IN')}
                               </td>
