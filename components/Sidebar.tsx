@@ -221,22 +221,31 @@ const NAV_LINKS = [
   },
 ]
 
+const WORKER_ALLOWED_HREFS = ['/', '/stock-log', '/low-stock', '/most-selling']
+
 export default function Sidebar({
   userEmail,
   totalInventoryCost,
   isViewer = false,
+  role = null,
   mobileOpen = false,
   onClose,
 }: {
   userEmail: string
   totalInventoryCost: number
   isViewer?: boolean
+  role?: string | null
   mobileOpen?: boolean
   onClose?: () => void
 }) {
 
   const router = useRouter()
   const pathname = usePathname()
+
+  const visibleNavLinks =
+    role === 'worker'
+      ? NAV_LINKS.filter((link) => WORKER_ALLOWED_HREFS.includes(link.href))
+      : NAV_LINKS
 
   function go(href: string) {
 
@@ -307,7 +316,7 @@ export default function Sidebar({
 
         <nav className="flex flex-col gap-1">
 
-          {NAV_LINKS.map((link) => {
+          {visibleNavLinks.map((link) => {
 
             const active = link.isActive(pathname)
 

@@ -1,18 +1,22 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { usePathname } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import { supabase } from '../lib/supabase'
 import Sidebar from './Sidebar'
 import { ViewerProvider } from './ViewerContext'
 
+const WORKER_ALLOWED_PATHS = ['/', '/stock-log', '/low-stock', '/most-selling']
+
 export default function AppShell({ children }: { children: React.ReactNode }) {
 
   const pathname = usePathname()
+  const router = useRouter()
 
   const [userEmail, setUserEmail] = useState('')
   const [totalInventoryCost, setTotalInventoryCost] = useState(0)
   const [isViewer, setIsViewer] = useState(false)
+  const [role, setRole] = useState<string | null>(null)
   const [ready, setReady] = useState(false)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
 
@@ -43,6 +47,13 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           .maybeSingle()
 
       setIsViewer(roleData?.role === 'viewer')
+      setRole(roleData?.role || null)
+
+      if (roleData?.role === 'worker' && !WORKER_ALLOWED_PATHS.includes(pathname)) {
+
+        router.push('/')
+
+      }
 
       const { data: productsData } =
         await supabase.from('products').select('cost_price, current_stock')
@@ -100,7 +111,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
   return (
 
-    <ViewerProvider isViewer={isViewer}>
+    <ViewerProvider isViewer={isViewer} role={role}>
 
       <div
         className="min-h-screen bg-[#F1F2FB] p-4 lg:p-6"
@@ -126,6 +137,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             userEmail={userEmail}
             totalInventoryCost={totalInventoryCost}
             isViewer={isViewer}
+            role={role}
             mobileOpen={mobileMenuOpen}
             onClose={() => setMobileMenuOpen(false)}
           />

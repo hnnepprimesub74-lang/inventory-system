@@ -2,24 +2,35 @@
 
 import { createContext, useContext } from 'react'
 
-const ViewerContext = createContext(false)
+type RoleContextValue = {
+  isViewer: boolean
+  role: string | null
+}
+
+const RoleContext = createContext<RoleContextValue>({ isViewer: false, role: null })
 
 export function ViewerProvider({
   isViewer,
+  role = null,
   children,
 }: {
   isViewer: boolean
+  role?: string | null
   children: React.ReactNode
 }) {
 
   return (
-    <ViewerContext.Provider value={isViewer}>
+    <RoleContext.Provider value={{ isViewer, role }}>
       {children}
-    </ViewerContext.Provider>
+    </RoleContext.Provider>
   )
 
 }
 
 export function useViewer() {
-  return useContext(ViewerContext)
+  return useContext(RoleContext).isViewer
+}
+
+export function useRole() {
+  return useContext(RoleContext).role
 }
