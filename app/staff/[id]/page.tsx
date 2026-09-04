@@ -5,6 +5,7 @@ import { useRouter, useParams } from 'next/navigation'
 import { supabase } from '../../../lib/supabase'
 import MonthPicker from '../../../components/MonthPicker'
 import ConfirmDialog from '../../../components/ConfirmDialog'
+import { useViewer } from '../../../components/ViewerContext'
 
 function currentMonth() {
   return new Date().toISOString().slice(0, 7)
@@ -25,6 +26,7 @@ export default function StaffLedgerPage() {
   const router = useRouter()
   const params = useParams()
   const staffId = params?.id as string
+  const isViewer = useViewer()
 
   const [staffMember, setStaffMember] = useState<any>(null)
   const [salaryRecords, setSalaryRecords] = useState<any[]>([])
@@ -284,96 +286,104 @@ export default function StaffLedgerPage() {
 
         </div>
 
-        <div className="bg-white rounded-[28px] shadow-xl border border-zinc-200 p-6">
+        {!isViewer && (
 
-          <h3 className="font-bold text-lg text-zinc-900 mb-4">Set Monthly Salary</h3>
+          <div className="bg-white rounded-[28px] shadow-xl border border-zinc-200 p-6">
 
-          <p className="text-xs text-zinc-400 mb-4">
+            <h3 className="font-bold text-lg text-zinc-900 mb-4">Set Monthly Salary</h3>
 
-            Set the salary rate effective from a given month onward — e.g. Rs. 15,000 from Jan 2026, then Rs. 18,000 from Oct 2026 onward.
+            <p className="text-xs text-zinc-400 mb-4">
 
-          </p>
+              Set the salary rate effective from a given month onward — e.g. Rs. 15,000 from Jan 2026, then Rs. 18,000 from Oct 2026 onward.
 
-          <div className="flex gap-3 flex-wrap">
+            </p>
 
-            <MonthPicker value={newRateMonth} onChange={setNewRateMonth} />
+            <div className="flex gap-3 flex-wrap">
 
-            <input
-              type="number"
-              value={newRateAmount}
-              onChange={(e) => setNewRateAmount(e.target.value)}
-              placeholder="Salary amount"
-              className="border border-zinc-300 rounded-xl px-4 py-2.5 w-48"
-            />
+              <MonthPicker value={newRateMonth} onChange={setNewRateMonth} />
 
-            <button
-              onClick={() => {
+              <input
+                type="number"
+                value={newRateAmount}
+                onChange={(e) => setNewRateAmount(e.target.value)}
+                placeholder="Salary amount"
+                className="border border-zinc-300 rounded-xl px-4 py-2.5 w-48"
+              />
 
-                if (!Number(newRateAmount) || Number(newRateAmount) <= 0) {
+              <button
+                onClick={() => {
 
-                  alert('Enter a valid amount')
-                  return
+                  if (!Number(newRateAmount) || Number(newRateAmount) <= 0) {
 
-                }
+                    alert('Enter a valid amount')
+                    return
 
-                setConfirmNewRate(true)
+                  }
 
-              }}
-              disabled={savingRate}
-              className="bg-zinc-900 text-white px-5 py-2.5 rounded-xl text-sm font-semibold disabled:opacity-50"
-            >
+                  setConfirmNewRate(true)
 
-              {savingRate ? 'Saving...' : 'Set Rate'}
+                }}
+                disabled={savingRate}
+                className="bg-zinc-900 text-white px-5 py-2.5 rounded-xl text-sm font-semibold disabled:opacity-50"
+              >
 
-            </button>
+                {savingRate ? 'Saving...' : 'Set Rate'}
 
-          </div>
+              </button>
 
-        </div>
-
-        <div className="bg-white rounded-[28px] shadow-xl border border-zinc-200 p-6">
-
-          <h3 className="font-bold text-lg text-zinc-900 mb-4">Add Salary Record</h3>
-
-          <div className="flex gap-3 flex-wrap">
-
-            <MonthPicker value={salaryMonth} onChange={updateSalaryMonth} />
-
-            <input
-              type="number"
-              value={salaryAmount}
-              onChange={(e) => setSalaryAmount(e.target.value)}
-              placeholder="Amount"
-              className="border border-zinc-300 rounded-xl px-4 py-2.5 w-40"
-            />
-
-            <input
-              type="date"
-              value={salaryPaidDate}
-              onChange={(e) => setSalaryPaidDate(e.target.value)}
-              className="border border-zinc-300 rounded-xl px-4 py-2.5"
-            />
-
-            <input
-              value={salaryNote}
-              onChange={(e) => setSalaryNote(e.target.value)}
-              placeholder="Note (optional)"
-              className="border border-zinc-300 rounded-xl px-4 py-2.5 flex-1 min-w-[180px]"
-            />
-
-            <button
-              onClick={addSalaryRecord}
-              disabled={saving}
-              className="bg-green-600 text-white px-5 py-2.5 rounded-xl font-bold text-sm disabled:opacity-50"
-            >
-
-              {saving ? 'Saving...' : 'Add Record'}
-
-            </button>
+            </div>
 
           </div>
 
-        </div>
+        )}
+
+        {!isViewer && (
+
+          <div className="bg-white rounded-[28px] shadow-xl border border-zinc-200 p-6">
+
+            <h3 className="font-bold text-lg text-zinc-900 mb-4">Add Salary Record</h3>
+
+            <div className="flex gap-3 flex-wrap">
+
+              <MonthPicker value={salaryMonth} onChange={updateSalaryMonth} />
+
+              <input
+                type="number"
+                value={salaryAmount}
+                onChange={(e) => setSalaryAmount(e.target.value)}
+                placeholder="Amount"
+                className="border border-zinc-300 rounded-xl px-4 py-2.5 w-40"
+              />
+
+              <input
+                type="date"
+                value={salaryPaidDate}
+                onChange={(e) => setSalaryPaidDate(e.target.value)}
+                className="border border-zinc-300 rounded-xl px-4 py-2.5"
+              />
+
+              <input
+                value={salaryNote}
+                onChange={(e) => setSalaryNote(e.target.value)}
+                placeholder="Note (optional)"
+                className="border border-zinc-300 rounded-xl px-4 py-2.5 flex-1 min-w-[180px]"
+              />
+
+              <button
+                onClick={addSalaryRecord}
+                disabled={saving}
+                className="bg-green-600 text-white px-5 py-2.5 rounded-xl font-bold text-sm disabled:opacity-50"
+              >
+
+                {saving ? 'Saving...' : 'Add Record'}
+
+              </button>
+
+            </div>
+
+          </div>
+
+        )}
 
         <div className="bg-white rounded-[28px] shadow-xl border border-zinc-200 p-6">
 

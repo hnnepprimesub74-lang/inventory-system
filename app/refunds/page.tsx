@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '../../lib/supabase'
 import MonthPicker from '../../components/MonthPicker'
+import { useViewer } from '../../components/ViewerContext'
 import * as XLSX from 'xlsx'
 import { saveAs } from 'file-saver'
 
@@ -26,6 +27,7 @@ function monthLabel(month: string) {
 export default function RefundsPage() {
 
   const router = useRouter()
+  const isViewer = useViewer()
 
   const [products, setProducts] = useState<any[]>([])
   const [refunds, setRefunds] = useState<any[]>([])
@@ -276,14 +278,18 @@ export default function RefundsPage() {
 
           </div>
 
-          <button
-            onClick={() => setShowAddModal(true)}
-            className="bg-amber-400 border border-amber-500 text-zinc-900 hover:bg-amber-500 transition-colors px-4 py-2 rounded-xl text-sm font-semibold"
-          >
+          {!isViewer && (
 
-            + Add Refund
+            <button
+              onClick={() => setShowAddModal(true)}
+              className="bg-amber-400 border border-amber-500 text-zinc-900 hover:bg-amber-500 transition-colors px-4 py-2 rounded-xl text-sm font-semibold"
+            >
 
-          </button>
+              + Add Refund
+
+            </button>
+
+          )}
 
         </div>
 

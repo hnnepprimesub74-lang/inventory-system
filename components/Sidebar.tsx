@@ -209,11 +209,13 @@ const NAV_LINKS = [
 export default function Sidebar({
   userEmail,
   totalInventoryCost,
+  isViewer = false,
   mobileOpen = false,
   onClose,
 }: {
   userEmail: string
   totalInventoryCost: number
+  isViewer?: boolean
   mobileOpen?: boolean
   onClose?: () => void
 }) {
@@ -338,7 +340,17 @@ export default function Sidebar({
 
           </div>
 
-          <p className="text-sm text-zinc-600 truncate min-w-0">{userEmail}</p>
+          <div className="min-w-0">
+
+            <p className="text-sm text-zinc-600 truncate">{userEmail}</p>
+
+            {isViewer && (
+              <span className="inline-block mt-0.5 bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wide">
+                View Only
+              </span>
+            )}
+
+          </div>
 
         </div>
 

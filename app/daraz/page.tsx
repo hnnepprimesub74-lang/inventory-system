@@ -7,6 +7,7 @@ import MonthPicker from '../../components/MonthPicker'
 import DatePicker from '../../components/DatePicker'
 import ConfirmDialog from '../../components/ConfirmDialog'
 import LineChart from '../../components/LineChart'
+import { useViewer } from '../../components/ViewerContext'
 import * as XLSX from 'xlsx'
 import { saveAs } from 'file-saver'
 
@@ -60,6 +61,7 @@ function monthLabel(month: string) {
 export default function DarazCashInPage() {
 
   const router = useRouter()
+  const isViewer = useViewer()
 
   const [stores, setStores] = useState<any[]>([])
   const [cashouts, setCashouts] = useState<any[]>([])
@@ -481,14 +483,18 @@ export default function DarazCashInPage() {
 
           </div>
 
-          <button
-            onClick={() => setShowAddStore(true)}
-            className="bg-amber-400 border border-amber-500 text-zinc-900 hover:bg-amber-500 transition-colors px-4 py-2 rounded-xl text-sm font-semibold"
-          >
+          {!isViewer && (
 
-            + Add Store
+            <button
+              onClick={() => setShowAddStore(true)}
+              className="bg-amber-400 border border-amber-500 text-zinc-900 hover:bg-amber-500 transition-colors px-4 py-2 rounded-xl text-sm font-semibold"
+            >
 
-          </button>
+              + Add Store
+
+            </button>
+
+          )}
 
         </div>
 
@@ -530,6 +536,8 @@ export default function DarazCashInPage() {
           )}
 
         </div>
+
+        {!isViewer && (
 
         <div className="bg-white rounded-[28px] shadow-xl border border-zinc-200 p-6">
 
@@ -624,6 +632,8 @@ export default function DarazCashInPage() {
 
         </div>
 
+        )}
+
         <div className="bg-white rounded-[28px] shadow-xl border border-zinc-200 p-6">
 
           <div className="flex items-center justify-between flex-wrap gap-3 mb-4">
@@ -702,7 +712,7 @@ export default function DarazCashInPage() {
 
                         const record = row.records[s.id]
                         const isEditing =
-                          editingCell?.date === row.date && editingCell?.storeId === s.id
+                          !isViewer && editingCell?.date === row.date && editingCell?.storeId === s.id
 
                         if (isEditing) {
 
@@ -758,6 +768,7 @@ export default function DarazCashInPage() {
 
                               <div className="flex items-center justify-end gap-1.5">
 
+                                {!isViewer && (
                                 <span className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1">
 
                                   <button
@@ -781,6 +792,7 @@ export default function DarazCashInPage() {
                                   </button>
 
                                 </span>
+                                )}
 
                                 <span>{row.amounts[s.id].toLocaleString('en-IN')}</span>
 

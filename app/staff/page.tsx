@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '../../lib/supabase'
 import MonthPicker from '../../components/MonthPicker'
+import { useViewer } from '../../components/ViewerContext'
 
 function currentMonth() {
   return new Date().toISOString().slice(0, 7)
@@ -22,6 +23,7 @@ function rateForMonth(rates: any[], month: string) {
 export default function StaffPage() {
 
   const router = useRouter()
+  const isViewer = useViewer()
 
   const [staff, setStaff] = useState<any[]>([])
   const [salaryRecords, setSalaryRecords] = useState<any[]>([])
@@ -175,14 +177,18 @@ export default function StaffPage() {
 
           </div>
 
-          <button
-            onClick={() => setShowAddStaff(true)}
-            className="bg-amber-400 border border-amber-500 text-zinc-900 hover:bg-amber-500 transition-colors px-4 py-2 rounded-xl text-sm font-semibold"
-          >
+          {!isViewer && (
 
-            + Add Staff
+            <button
+              onClick={() => setShowAddStaff(true)}
+              className="bg-amber-400 border border-amber-500 text-zinc-900 hover:bg-amber-500 transition-colors px-4 py-2 rounded-xl text-sm font-semibold"
+            >
 
-          </button>
+              + Add Staff
+
+            </button>
+
+          )}
 
         </div>
 

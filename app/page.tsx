@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '../lib/supabase'
+import { useViewer } from '../components/ViewerContext'
 import * as XLSX from 'xlsx'
 import { saveAs } from 'file-saver'
 
@@ -19,6 +20,7 @@ function todayISO() {
 export default function Home() {
 
   const router = useRouter()
+  const isViewer = useViewer()
 
   const scanInputRef = useRef<any>(null)
 
@@ -34,32 +36,6 @@ export default function Home() {
     useState('')
 
   const [message, setMessage] = useState('')
-
-  const [barcode, setBarcode] =
-    useState('')
-
-  const [productName,
-    setProductName] =
-    useState('')
-
-  const [category,
-    setCategory] =
-    useState('')
-
-  const [brand,
-    setBrand] =
-    useState('')
-
-  const [costPrice,
-    setCostPrice] =
-    useState('')
-
-  const [mrp,
-    setMrp] =
-    useState('')
-
-  const [stock, setStock] =
-    useState('')
 
   const [search, setSearch] =
     useState('')
@@ -78,6 +54,9 @@ export default function Home() {
   const [selectedBrand,
     setSelectedBrand] =
     useState('ALL')
+
+  const [expandedGroups, setExpandedGroups] =
+    useState<Record<string, boolean>>({})
 
   const [editingProduct,
     setEditingProduct] =
@@ -121,18 +100,6 @@ export default function Home() {
 
   const [editImage,
     setEditImage] =
-    useState('')
-
-  const [imageUrl,
-    setImageUrl] =
-    useState('')
-
-  const [shade,
-    setShade] =
-    useState('')
-
-  const [weight,
-    setWeight] =
     useState('')
 
   const [selectedProduct,
@@ -400,117 +367,6 @@ export default function Home() {
       setStockInHistory(data)
 
     }
-
-  }
-
-  async function uploadImage(
-    file: any
-  ) {
-
-    const fileName =
-      `${Date.now()}-${file.name}`
-
-    const { error } =
-      await supabase.storage
-        .from('products')
-        .upload(
-          fileName,
-          file
-        )
-
-    if (error) {
-
-      alert(error.message)
-      return
-
-    }
-
-    const {
-      data
-    } = supabase.storage
-      .from('products')
-      .getPublicUrl(
-        fileName
-      )
-
-    setImageUrl(
-      data.publicUrl
-    )
-  }
-
-  async function addProduct() {
-
-    if (
-      !barcode ||
-      !productName
-    ) {
-
-      alert(
-        'Fill all details'
-      )
-
-      return
-
-    }
-
-    const { error } =
-      await supabase
-        .from('products')
-        .insert([
-          {
-            barcode,
-
-            product_name:
-              productName,
-
-            category,
-
-            brand,
-
-            cost_price:
-              Number(costPrice),
-
-            mrp:
-              mrp ? Number(mrp) : null,
-
-            current_stock:
-              Number(stock),
-
-            shade,
-
-            weight,
-
-            image_url:
-              imageUrl,
-          },
-        ])
-
-    if (error) {
-
-      alert(error.message)
-      return
-
-    }
-
-    alert('Product Added')
-
-    setBarcode('')
-    setProductName('')
-    setCategory('')
-    setBrand('')
-    setCostPrice('')
-    setMrp('')
-    setStock('')
-    setShade('')
-    setWeight('')
-    setImageUrl('')
-
-    const productsData =
-      await fetchProducts()
-
-    await fetchTopSellingProducts(
-      productsData
-    )
 
   }
 
@@ -1119,14 +975,24 @@ export default function Home() {
       .filter(
         (product) => {
 
+          const searchLower = search.toLowerCase()
+
           const matchesSearch =
+            !search ||
             product.product_name
               ?.toLowerCase()
-              .includes(
-                search.toLowerCase()
-              ) ||
+              .includes(searchLower) ||
             product.barcode
-              ?.includes(search)
+              ?.includes(search) ||
+            product.brand
+              ?.toLowerCase()
+              .includes(searchLower) ||
+            product.category
+              ?.toLowerCase()
+              .includes(searchLower) ||
+            product.shade
+              ?.toLowerCase()
+              .includes(searchLower)
 
           const matchesCategory =
             selectedCategory ===
@@ -1154,6 +1020,67 @@ export default function Home() {
             b.product_name || ''
           )
       )
+
+  const reorderPointById: Record<string, number> = {}
+
+  topSellingProducts.forEach((p) => {
+    reorderPointById[p.id] = p.reorderPoint
+  })
+
+  function productGroupKey(p: any) {
+
+    return [
+      (p.product_name || '').trim().toLowerCase(),
+      (p.brand || '').trim().toLowerCase(),
+      (p.category || '').trim().toLowerCase(),
+    ].join('|')
+
+  }
+
+  const productGroupsMap: Record<string, any> = {}
+
+  filteredProducts.forEach((p) => {
+
+    const key = productGroupKey(p)
+
+    if (!productGroupsMap[key]) {
+
+      productGroupsMap[key] = {
+        key,
+        productName: p.product_name,
+        category: p.category,
+        brand: p.brand,
+        image: p.image_url,
+        variants: [],
+      }
+
+    }
+
+    if (!productGroupsMap[key].image && p.image_url) {
+      productGroupsMap[key].image = p.image_url
+    }
+
+    productGroupsMap[key].variants.push(p)
+
+  })
+
+  const productGroups = Object.values(productGroupsMap)
+    .map((g: any) => {
+
+      const totalStock = g.variants.reduce(
+        (s: number, v: any) => s + Number(v.current_stock || 0),
+        0
+      )
+
+      const totalValue = g.variants.reduce(
+        (s: number, v: any) => s + Number(v.cost_price || 0) * Number(v.current_stock || 0),
+        0
+      )
+
+      return { ...g, totalStock, totalValue }
+
+    })
+    .sort((a: any, b: any) => (a.productName || '').localeCompare(b.productName || ''))
 
   const totalStockValue =
     products.reduce(
@@ -1294,6 +1221,8 @@ export default function Home() {
         </div>
 
         {/* SCANNER */}
+
+        {!isViewer && (
 
         <div className="bg-white rounded-[28px] shadow-xl border border-zinc-200 p-8">
 
@@ -2032,353 +1961,33 @@ export default function Home() {
 
         </div>
 
-        {/* ADD PRODUCT */}
-
-        <div className="bg-white rounded-[28px] shadow-xl border border-zinc-200 p-8">
-
-          <h2 className="text-4xl font-bold mb-8">
-
-            Add Stock
-
-          </h2>
-
-          <div className="grid grid-cols-1 md:grid-cols-5 gap-5">
-
-            <input
-              type="text"
-              placeholder="Barcode"
-              value={barcode}
-              onChange={(e) =>
-                setBarcode(
-                  e.target.value
-                )
-              }
-              className="border border-zinc-300 focus:ring-4 focus:ring-emerald-200 focus:border-emerald-500 outline-none rounded-2xl px-4 py-4"
-            />
-
-            <input
-              type="text"
-              placeholder="Product Name"
-              value={productName}
-              onChange={(e) =>
-                setProductName(
-                  e.target.value
-                )
-              }
-              className="border border-zinc-300 focus:ring-4 focus:ring-emerald-200 focus:border-emerald-500 outline-none rounded-2xl px-4 py-4"
-            />
-
-            <input
-              list="categories"
-              placeholder="Category"
-              value={category}
-
-              onChange={(e) =>
-                setCategory(
-                  e.target.value
-                )
-              }
-              className="border border-zinc-300 focus:ring-4 focus:ring-emerald-200 focus:border-emerald-500 outline-none rounded-2xl px-4 py-4"
-            />
-
-            <datalist id="categories">
-
-              {uniqueCategories.map(
-                (
-                  cat,
-                  index
-                ) => (
-
-                  <option
-                    key={index}
-                    value={cat}
-                  />
-
-                )
-              )}
-
-            </datalist>
-
-            <input
-              list="brands"
-              placeholder="Brand"
-              value={brand}
-              onChange={(e) =>
-                setBrand(
-                  e.target.value
-                )
-              }
-              className="border border-zinc-300 focus:ring-4 focus:ring-emerald-200 focus:border-emerald-500 outline-none rounded-2xl px-4 py-4"
-            />
-
-            <datalist id="brands">
-
-              {uniqueBrands.map(
-                (
-                  b,
-                  index
-                ) => (
-
-                  <option
-                    key={index}
-                    value={b}
-                  />
-
-                )
-              )}
-
-            </datalist>
-
-            <input
-              type="number"
-              placeholder="Cost Price"
-              value={costPrice}
-              onChange={(e) =>
-                setCostPrice(
-                  e.target.value
-                )
-              }
-              className="border border-zinc-300 focus:ring-4 focus:ring-emerald-200 focus:border-emerald-500 outline-none rounded-2xl px-4 py-4"
-            />
-
-            <input
-              type="number"
-              placeholder="MRP"
-              value={mrp}
-              onChange={(e) =>
-                setMrp(
-                  e.target.value
-                )
-              }
-              className="border border-zinc-300 focus:ring-4 focus:ring-emerald-200 focus:border-emerald-500 outline-none rounded-2xl px-4 py-4"
-            />
-
-            <input
-              type="number"
-
-              placeholder="Stock"
-              value={stock}
-              onChange={(e) =>
-                setStock(
-                  e.target.value
-                )
-              }
-              className="border border-zinc-300 focus:ring-4 focus:ring-emerald-200 focus:border-emerald-500 outline-none rounded-2xl px-4 py-4"
-            />
-            <input
-              type="text"
-              placeholder="Shade"
-              value={shade}
-              onChange={(e) =>
-                setShade(
-                  e.target.value
-                )
-              }
-              className="border border-zinc-300 focus:ring-4 focus:ring-emerald-200 focus:border-emerald-500 outline-none rounded-2xl px-4 py-4"
-            />
-
-            <input
-              type="text"
-              placeholder="Weight"
-              value={weight}
-              onChange={(e) =>
-                setWeight(
-                  e.target.value
-                )
-              }
-              className="border border-zinc-300 focus:ring-4 focus:ring-emerald-200 focus:border-emerald-500 outline-none rounded-2xl px-4 py-4"
-            />
-
-            <input
-              type="file"
-              accept="image/*"
-              onChange={async (e) => {
-
-                const file =
-                  e.target.files?.[0]
-
-                if (file) {
-
-                  await uploadImage(
-                    file
-                  )
-
-                }
-
-              }}
-              className="border border-zinc-300 focus:ring-4 focus:ring-emerald-200 focus:border-emerald-500 outline-none rounded-2xl px-4 py-4"
-            />
-
-          </div>
-
-          <button
-            onClick={addProduct}
-            className="bg-zinc-900 hover:bg-zinc-800 hover:scale-105 transition-all duration-200 text-white px-8 py-4 rounded-2xl font-bold text-lg mt-6"
-          >
-
-            Add Product
-
-          </button>
-
-        </div>
+        )}
 
         {/* INVENTORY */}
 
         <div className="bg-white rounded-[28px] shadow-xl border border-zinc-200 p-8">
 
-          <div className="flex flex-wrap gap-3 mb-3">
-
-            <button
-              onClick={() =>
-                setSelectedCategory(
-                  'ALL'
-                )
-              }
-              className={`px-5 py-3 rounded-2xl font-semibold ${selectedCategory ===
-                'ALL'
-                ? 'bg-blue-600 text-white'
-                : 'bg-zinc-900 hover:bg-zinc-800 hover:scale-105 transition-all duration-200 text-white'
-                }`}
-            >
-
-              ALL CATEGORIES
-
-            </button>
-
-            {uniqueCategories.map(
-              (
-                cat,
-                index
-              ) => {
-
-                const categoryProducts =
-                  products.filter(
-                    (p) =>
-                      p.category ===
-                      cat
-                  )
-
-                const totalQty =
-                  categoryProducts.reduce(
-                    (
-                      sum,
-                      p
-                    ) =>
-                      sum +
-                      Number(
-                        p.current_stock
-                      ),
-                    0
-                  )
-
-                return (
-
-                  <button
-                    key={index}
-                    onClick={() =>
-                      setSelectedCategory(
-                        cat
-                      )
-                    }
-                    className={`px-5 py-3 rounded-2xl font-semibold ${selectedCategory ===
-                      cat
-                      ? 'bg-blue-600 text-white'
-                      : 'bg-zinc-900 hover:bg-zinc-800 hover:scale-105 transition-all duration-200 text-white'
-                      }`}
-                  >
-
-                    {cat}
-
-                    {' | Qty: '}
-
-                    {totalQty}
-
-                  </button>
-
-                )
-
-              }
-            )}
-
-          </div>
-
-          <div className="flex flex-wrap gap-3 mb-6">
-
-            <button
-              onClick={() =>
-                setSelectedBrand(
-                  'ALL'
-                )
-              }
-              className={`px-5 py-3 rounded-2xl font-semibold ${selectedBrand ===
-                'ALL'
-                ? 'bg-purple-600 text-white'
-                : 'bg-zinc-700 hover:bg-zinc-600 hover:scale-105 transition-all duration-200 text-white'
-                }`}
-            >
-
-              ALL BRANDS
-
-            </button>
-
-            {uniqueBrands.map(
-              (
-                b,
-                index
-              ) => (
-
-                <button
-                  key={index}
-                  onClick={() =>
-                    setSelectedBrand(
-                      b
-                    )
-                  }
-                  className={`px-5 py-3 rounded-2xl font-semibold ${selectedBrand ===
-                    b
-                    ? 'bg-purple-600 text-white'
-                    : 'bg-zinc-700 hover:bg-zinc-600 hover:scale-105 transition-all duration-200 text-white'
-                    }`}
-                >
-
-                  {b}
-
-                </button>
-
-              )
-            )}
-
-          </div>
-
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-5 mb-8">
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-6">
 
             <div>
 
-              <h2 className="text-4xl font-bold">
+              <h2 className="text-3xl font-bold text-zinc-900">
 
                 Inventory Products
 
               </h2>
 
-              <input
-                type="text"
-                placeholder="Search"
-                value={search}
-                onChange={(e) =>
-                  setSearch(
-                    e.target.value
-                  )
-                }
-                className="border border-zinc-300 focus:ring-4 focus:ring-emerald-200 focus:border-emerald-500 outline-none rounded-2xl px-4 py-3 w-full max-w-md mt-4"
-              />
+              <p className="text-sm text-zinc-500 mt-1">
+
+                {productGroups.length} unique {productGroups.length === 1 ? 'product' : 'products'} · {filteredProducts.length} {filteredProducts.length === 1 ? 'variant' : 'variants'}
+
+              </p>
 
             </div>
 
             <button
-              onClick={
-                exportToExcel
-              }
-              className="bg-green-600 text-white px-5 py-3 rounded-2xl font-bold"
+              onClick={exportToExcel}
+              className="bg-green-600 text-white px-5 py-3 rounded-2xl font-bold self-start lg:self-auto"
             >
 
               Export Excel
@@ -2387,365 +1996,428 @@ export default function Home() {
 
           </div>
 
-          <div className="overflow-x-auto -mx-8 px-8">
+          <div className="flex flex-wrap gap-3 items-center mb-6">
 
-            <table className="w-full border-collapse">
+            <div className="relative flex-1 min-w-[240px]">
 
-              <thead>
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.8"
+                className="w-4 h-4 absolute left-4 top-1/2 -translate-y-1/2 text-zinc-400"
+              >
 
-                <tr className="text-left">
+                <circle cx="11" cy="11" r="7" />
 
-                  <th className="pb-3 pr-4 text-sm font-medium text-zinc-500 w-16">
+                <path d="M21 21l-4.35-4.35" strokeLinecap="round" />
 
-                    Image
+              </svg>
 
-                  </th>
+              <input
+                type="text"
+                placeholder="Search product, brand, category or barcode"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="w-full border border-zinc-300 focus:ring-4 focus:ring-indigo-100 focus:border-indigo-500 outline-none rounded-xl pl-10 pr-4 py-2.5 text-sm"
+              />
 
-                  <th className="pb-3 pr-4 text-sm font-medium text-zinc-500">
+            </div>
 
-                    Product
+            <select
+              value={selectedCategory}
+              onChange={(e) => setSelectedCategory(e.target.value)}
+              className="border border-zinc-300 rounded-xl px-4 py-2.5 text-sm min-w-[160px]"
+            >
 
-                  </th>
+              <option value="ALL">All Categories</option>
 
-                  <th className="pb-3 pr-4 text-sm font-medium text-zinc-500">
+              {uniqueCategories.map((cat, index) => (
+                <option key={index} value={cat}>{cat}</option>
+              ))}
 
-                    Category
+            </select>
 
-                  </th>
+            <select
+              value={selectedBrand}
+              onChange={(e) => setSelectedBrand(e.target.value)}
+              className="border border-zinc-300 rounded-xl px-4 py-2.5 text-sm min-w-[160px]"
+            >
 
-                  <th className="pb-3 pr-4 text-sm font-medium text-zinc-500">
+              <option value="ALL">All Brands</option>
 
-                    Brand
+              {uniqueBrands.map((b, index) => (
+                <option key={index} value={b}>{b}</option>
+              ))}
 
-                  </th>
+            </select>
 
-                  <th className="pb-3 pr-4 text-sm font-medium text-zinc-500">
+            {(search || selectedCategory !== 'ALL' || selectedBrand !== 'ALL') && (
 
-                    Shade
+              <button
+                onClick={() => {
+                  setSearch('')
+                  setSelectedCategory('ALL')
+                  setSelectedBrand('ALL')
+                }}
+                className="bg-white border border-zinc-300 text-zinc-700 px-4 py-2.5 rounded-xl text-sm font-semibold hover:bg-zinc-50"
+              >
 
-                  </th>
+                Clear Filters
 
-                  <th className="pb-3 pr-4 text-sm font-medium text-zinc-500">
+              </button>
 
-                    Weight
-
-                  </th>
-
-                  <th className="pb-3 pr-4 text-sm font-medium text-zinc-500 text-right">
-
-                    Cost
-
-                  </th>
-
-                  <th className="pb-3 pr-4 text-sm font-medium text-zinc-500 text-right">
-
-                    MRP
-
-                  </th>
-
-                  <th className="pb-3 pr-4 text-sm font-medium text-zinc-500 text-right">
-
-                    Stock
-
-                  </th>
-
-                  <th className="pb-3 pr-4 text-sm font-medium text-zinc-500 text-right">
-
-                    Total
-
-                  </th>
-
-                  <th className="pb-3 text-sm font-medium text-zinc-500 text-right">
-
-                    Actions
-
-                  </th>
-
-                </tr>
-
-              </thead>
-
-              <tbody className="divide-y divide-zinc-100">
-
-                {filteredProducts.map(
-                  (product) => (
-
-                    <tr
-                      key={
-                        product.id
-                      }
-                      className="hover:bg-zinc-50 transition-colors"
-                    >
-
-                      <td className="py-3 pr-4">
-
-                        {product.image_url ? (
-
-                          <img
-                            src={product.image_url}
-                            alt=""
-                            className="w-12 h-12 rounded-lg object-cover border border-zinc-200"
-                          />
-
-                        ) : (
-
-                          <div className="w-12 h-12 rounded-lg bg-zinc-100 border border-zinc-200 flex items-center justify-center text-zinc-300">
-
-                            <svg
-                              xmlns="http://www.w3.org/2000/svg"
-                              viewBox="0 0 24 24"
-                              fill="none"
-                              stroke="currentColor"
-                              strokeWidth="1.5"
-                              className="w-6 h-6"
-                            >
-
-                              <rect x="3" y="3" width="18" height="18" rx="3" />
-
-                              <circle cx="8.5" cy="9" r="1.5" />
-
-                              <path d="M21 15l-5-5L5 21" />
-
-                            </svg>
-
-                          </div>
-
-                        )}
-
-                      </td>
-
-                      <td className="py-3 pr-4">
-
-                        <div className="font-semibold text-zinc-900">
-
-                          {product.product_name}
-
-                        </div>
-
-                        <div className="text-xs text-zinc-400 mt-0.5">
-
-                          {product.barcode}
-
-                        </div>
-
-                      </td>
-
-                      <td className="py-3 pr-4 text-sm text-zinc-600">
-
-                        {product.category}
-
-                      </td>
-
-                      <td className="py-3 pr-4 text-sm text-zinc-600">
-
-                        {product.brand}
-
-                      </td>
-
-                      <td className="py-3 pr-4 text-sm text-zinc-600">
-
-                        {product.shade}
-
-                      </td>
-
-                      <td className="py-3 pr-4 text-sm text-zinc-600">
-
-                        {product.weight}
-
-                      </td>
-
-                      <td className="py-3 pr-4 text-sm text-zinc-600 text-right tabular-nums">
-
-                        Rs. {product.cost_price}
-
-                      </td>
-
-                      <td className="py-3 pr-4 text-sm text-zinc-600 text-right tabular-nums">
-
-                        {product.mrp ? `Rs. ${product.mrp}` : '—'}
-
-                      </td>
-
-                      <td className="py-3 pr-4 font-semibold text-zinc-900 text-right tabular-nums">
-
-                        {product.current_stock}
-
-                      </td>
-
-                      <td className="py-3 pr-4 font-semibold text-zinc-900 text-right tabular-nums">
-
-                        Rs.
-                        {' '}
-                        {product.cost_price *
-                          product.current_stock}
-
-                      </td>
-
-                      <td className="py-3">
-
-                        <div className="flex items-center justify-end gap-2">
-
-                          <button
-                            onClick={() => {
-
-                              setEditingProduct(
-                                product
-                              )
-
-                              setEditName(
-                                product.product_name
-                              )
-
-                              setEditCategory(
-                                product.category
-                              )
-
-                              setEditBrand(
-                                product.brand
-                              )
-
-                              setEditCost(
-                                product.cost_price
-                              )
-
-                              setEditMrp(
-                                product.mrp
-                              )
-
-                              setEditStock(
-                                product.current_stock
-                              )
-
-                              setEditBarcode(
-                                product.barcode
-                              )
-
-                              setEditShade(
-                                product.shade
-                              )
-
-                              setEditWeight(
-                                product.weight
-                              )
-
-                              setEditImage(
-                                product.image_url
-                              )
-
-                            }}
-                            title="Edit"
-                            className="w-9 h-9 flex items-center justify-center rounded-lg border border-zinc-200 text-zinc-600 hover:bg-blue-50 hover:border-blue-200 hover:text-blue-600 transition-colors"
-                          >
-
-                            <svg
-                              xmlns="http://www.w3.org/2000/svg"
-                              viewBox="0 0 24 24"
-                              fill="none"
-                              stroke="currentColor"
-                              strokeWidth="1.8"
-                              className="w-4 h-4"
-                            >
-
-                              <path d="M12 20h9" />
-
-                              <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
-
-                            </svg>
-
-                          </button>
-
-                          <button
-                            onClick={() => {
-
-                              setSelectedProduct(
-                                product
-                              )
-
-                              setAdjustStockQty(
-                                String(
-                                  product.current_stock
-                                )
-                              )
-
-                              setAdjustCostPrice(
-                                String(
-                                  product.cost_price
-                                )
-                              )
-
-                              setShowAdjustStockModal(
-                                true
-                              )
-
-                            }}
-                            title="Adjust Stock"
-                            className="w-9 h-9 flex items-center justify-center rounded-lg border border-zinc-200 text-zinc-600 hover:bg-green-50 hover:border-green-200 hover:text-green-600 transition-colors"
-                          >
-
-                            <svg
-                              xmlns="http://www.w3.org/2000/svg"
-                              viewBox="0 0 24 24"
-                              fill="none"
-                              stroke="currentColor"
-                              strokeWidth="1.8"
-                              className="w-4 h-4"
-                            >
-
-                              <path d="M21 8v13H3V8" />
-
-                              <path d="M1 3h22v5H1z" />
-
-                              <path d="M10 12h4" />
-
-                            </svg>
-
-                          </button>
-
-                          <button
-                            onClick={() =>
-                              setDeleteProductId(product.id)
-                            }
-                            title="Delete"
-                            className="w-9 h-9 flex items-center justify-center rounded-lg border border-zinc-200 text-zinc-600 hover:bg-red-50 hover:border-red-200 hover:text-red-600 transition-colors"
-                          >
-
-                            <svg
-                              xmlns="http://www.w3.org/2000/svg"
-                              viewBox="0 0 24 24"
-                              fill="none"
-                              stroke="currentColor"
-                              strokeWidth="1.8"
-                              className="w-4 h-4"
-                            >
-
-                              <path d="M3 6h18" />
-
-                              <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-
-                              <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
-
-                              <path d="M10 11v6" />
-
-                              <path d="M14 11v6" />
-
-                            </svg>
-
-                          </button>
-
-                        </div>
-
-                      </td>
-
-                    </tr>
-
-                  )
-                )}
-
-              </tbody>
-
-            </table>
+            )}
 
           </div>
+
+          {productGroups.length === 0 ? (
+
+            <p className="text-zinc-500 text-sm">No products match this filter.</p>
+
+          ) : (
+
+            <div className="space-y-3">
+
+              {productGroups.map((group: any) => {
+
+                const isOpen = !!expandedGroups[group.key]
+
+                return (
+
+                  <div
+                    key={group.key}
+                    className="border border-zinc-200 rounded-2xl overflow-hidden"
+                  >
+
+                    <button
+                      onClick={() =>
+                        setExpandedGroups((prev) => ({ ...prev, [group.key]: !prev[group.key] }))
+                      }
+                      className="w-full flex items-center gap-4 px-5 py-4 hover:bg-zinc-50 transition-colors text-left"
+                    >
+
+                      {group.image ? (
+
+                        <img
+                          src={group.image}
+                          alt=""
+                          className="w-12 h-12 rounded-lg object-cover border border-zinc-200 flex-shrink-0"
+                        />
+
+                      ) : (
+
+                        <div className="w-12 h-12 rounded-lg bg-zinc-100 border border-zinc-200 flex items-center justify-center text-zinc-300 flex-shrink-0">
+
+                          <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="1.5"
+                            className="w-6 h-6"
+                          >
+
+                            <rect x="3" y="3" width="18" height="18" rx="3" />
+
+                            <circle cx="8.5" cy="9" r="1.5" />
+
+                            <path d="M21 15l-5-5L5 21" />
+
+                          </svg>
+
+                        </div>
+
+                      )}
+
+                      <div className="flex-1 min-w-0">
+
+                        <p className="font-semibold text-zinc-900 truncate">{group.productName}</p>
+
+                        <p className="text-xs text-zinc-500 mt-0.5 truncate">
+
+                          {group.category}
+                          {group.brand && ` · ${group.brand}`}
+                          {' · '}
+                          {group.variants.length} {group.variants.length === 1 ? 'variant' : 'variants'}
+
+                        </p>
+
+                      </div>
+
+                      <div className="text-right hidden sm:block flex-shrink-0">
+
+                        <p className="text-xs text-zinc-500">Total Stock</p>
+                        <p className="font-semibold tabular-nums text-zinc-900">{group.totalStock}</p>
+
+                      </div>
+
+                      <div className="text-right hidden sm:block min-w-[110px] flex-shrink-0">
+
+                        <p className="text-xs text-zinc-500">Total Value</p>
+                        <p className="font-semibold tabular-nums text-zinc-900">Rs. {group.totalValue.toLocaleString('en-IN')}</p>
+
+                      </div>
+
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        className={`w-4 h-4 text-zinc-400 flex-shrink-0 transition-transform ${isOpen ? 'rotate-90' : ''}`}
+                      >
+
+                        <path d="M9 18l6-6-6-6" strokeLinecap="round" strokeLinejoin="round" />
+
+                      </svg>
+
+                    </button>
+
+                    {isOpen && (
+
+                      <div className="border-t border-zinc-200 overflow-x-auto">
+
+                        <table className="w-full border-collapse">
+
+                          <thead>
+
+                            <tr className="text-left bg-zinc-50">
+
+                              <th className="py-2.5 px-5 text-xs font-medium text-zinc-500">Barcode</th>
+                              <th className="py-2.5 px-5 text-xs font-medium text-zinc-500">Shade</th>
+                              <th className="py-2.5 px-5 text-xs font-medium text-zinc-500">Weight</th>
+                              <th className="py-2.5 px-5 text-xs font-medium text-zinc-500 text-right">Cost</th>
+                              <th className="py-2.5 px-5 text-xs font-medium text-zinc-500 text-right">MRP</th>
+                              <th className="py-2.5 px-5 text-xs font-medium text-zinc-500 text-right">Stock</th>
+                              <th className="py-2.5 px-5 text-xs font-medium text-zinc-500 text-right">Value</th>
+                              {!isViewer && (
+                                <th className="py-2.5 px-5 text-xs font-medium text-zinc-500 text-right">Actions</th>
+                              )}
+
+                            </tr>
+
+                          </thead>
+
+                          <tbody className="divide-y divide-zinc-100">
+
+                            {group.variants.map((product: any) => {
+
+                              const reorderPoint = reorderPointById[product.id] ?? 0
+                              const stockNum = Number(product.current_stock || 0)
+                              const isOutOfStock = stockNum <= 0
+                              const isLowStock = !isOutOfStock && stockNum <= reorderPoint
+
+                              return (
+
+                                <tr key={product.id} className="hover:bg-zinc-50 transition-colors">
+
+                                  <td className="py-2.5 px-5 text-sm text-zinc-500">{product.barcode || '—'}</td>
+                                  <td className="py-2.5 px-5 text-sm text-zinc-600">{product.shade || '—'}</td>
+                                  <td className="py-2.5 px-5 text-sm text-zinc-600">{product.weight || '—'}</td>
+                                  <td className="py-2.5 px-5 text-sm text-zinc-600 text-right tabular-nums">Rs. {product.cost_price}</td>
+                                  <td className="py-2.5 px-5 text-sm text-zinc-600 text-right tabular-nums">{product.mrp ? `Rs. ${product.mrp}` : '—'}</td>
+
+                                  <td
+                                    className={`py-2.5 px-5 font-semibold text-right tabular-nums ${isOutOfStock
+                                      ? 'text-red-600'
+                                      : isLowStock
+                                        ? 'text-amber-600'
+                                        : 'text-zinc-900'
+                                      }`}
+                                  >
+
+                                    {product.current_stock}
+
+                                  </td>
+
+                                  <td className="py-2.5 px-5 font-semibold text-zinc-900 text-right tabular-nums">
+
+                                    Rs. {(Number(product.cost_price || 0) * Number(product.current_stock || 0)).toLocaleString('en-IN')}
+
+                                  </td>
+
+                                  {!isViewer && (
+                                  <td className="py-2.5 px-5">
+
+                                    <div className="flex items-center justify-end gap-2">
+
+                                      <button
+                                        onClick={() => {
+
+                                          setEditingProduct(
+                                            product
+                                          )
+
+                                          setEditName(
+                                            product.product_name
+                                          )
+
+                                          setEditCategory(
+                                            product.category
+                                          )
+
+                                          setEditBrand(
+                                            product.brand
+                                          )
+
+                                          setEditCost(
+                                            product.cost_price
+                                          )
+
+                                          setEditMrp(
+                                            product.mrp
+                                          )
+
+                                          setEditStock(
+                                            product.current_stock
+                                          )
+
+                                          setEditBarcode(
+                                            product.barcode
+                                          )
+
+                                          setEditShade(
+                                            product.shade
+                                          )
+
+                                          setEditWeight(
+                                            product.weight
+                                          )
+
+                                          setEditImage(
+                                            product.image_url
+                                          )
+
+                                        }}
+                                        title="Edit"
+                                        className="w-9 h-9 flex items-center justify-center rounded-lg border border-zinc-200 text-zinc-600 hover:bg-blue-50 hover:border-blue-200 hover:text-blue-600 transition-colors"
+                                      >
+
+                                        <svg
+                                          xmlns="http://www.w3.org/2000/svg"
+                                          viewBox="0 0 24 24"
+                                          fill="none"
+                                          stroke="currentColor"
+                                          strokeWidth="1.8"
+                                          className="w-4 h-4"
+                                        >
+
+                                          <path d="M12 20h9" />
+
+                                          <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
+
+                                        </svg>
+
+                                      </button>
+
+                                      <button
+                                        onClick={() => {
+
+                                          setSelectedProduct(
+                                            product
+                                          )
+
+                                          setAdjustStockQty(
+                                            String(
+                                              product.current_stock
+                                            )
+                                          )
+
+                                          setAdjustCostPrice(
+                                            String(
+                                              product.cost_price
+                                            )
+                                          )
+
+                                          setShowAdjustStockModal(
+                                            true
+                                          )
+
+                                        }}
+                                        title="Adjust Stock"
+                                        className="w-9 h-9 flex items-center justify-center rounded-lg border border-zinc-200 text-zinc-600 hover:bg-green-50 hover:border-green-200 hover:text-green-600 transition-colors"
+                                      >
+
+                                        <svg
+                                          xmlns="http://www.w3.org/2000/svg"
+                                          viewBox="0 0 24 24"
+                                          fill="none"
+                                          stroke="currentColor"
+                                          strokeWidth="1.8"
+                                          className="w-4 h-4"
+                                        >
+
+                                          <path d="M21 8v13H3V8" />
+
+                                          <path d="M1 3h22v5H1z" />
+
+                                          <path d="M10 12h4" />
+
+                                        </svg>
+
+                                      </button>
+
+                                      <button
+                                        onClick={() =>
+                                          setDeleteProductId(product.id)
+                                        }
+                                        title="Delete"
+                                        className="w-9 h-9 flex items-center justify-center rounded-lg border border-zinc-200 text-zinc-600 hover:bg-red-50 hover:border-red-200 hover:text-red-600 transition-colors"
+                                      >
+
+                                        <svg
+                                          xmlns="http://www.w3.org/2000/svg"
+                                          viewBox="0 0 24 24"
+                                          fill="none"
+                                          stroke="currentColor"
+                                          strokeWidth="1.8"
+                                          className="w-4 h-4"
+                                        >
+
+                                          <path d="M3 6h18" />
+
+                                          <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+
+                                          <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+
+                                          <path d="M10 11v6" />
+
+                                          <path d="M14 11v6" />
+
+                                        </svg>
+
+                                      </button>
+
+                                    </div>
+
+                                  </td>
+                                  )}
+
+                                </tr>
+
+                              )
+
+                            })}
+
+                          </tbody>
+
+                        </table>
+
+                      </div>
+
+                    )}
+
+                  </div>
+
+                )
+
+              })}
+
+            </div>
+
+          )}
 
         </div>
 

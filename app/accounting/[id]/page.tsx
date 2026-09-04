@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import { supabase } from '../../../lib/supabase'
 import ConfirmDialog from '../../../components/ConfirmDialog'
+import { useViewer } from '../../../components/ViewerContext'
 
 function normalizeName(name: any) {
   return (name || '').toString().trim().toLowerCase()
@@ -12,6 +13,7 @@ function normalizeName(name: any) {
 export default function SupplierLedgerPage() {
 
   const router = useRouter()
+  const isViewer = useViewer()
   const params = useParams()
   const supplierId = params?.id as string
 
@@ -292,119 +294,127 @@ export default function SupplierLedgerPage() {
 
         </div>
 
-        <div className="bg-white rounded-[28px] shadow-xl border border-zinc-200 p-6">
+        {!isViewer && (
 
-          <h3 className="font-bold text-lg text-zinc-900 mb-4">Old Pending Payment</h3>
+          <div className="bg-white rounded-[28px] shadow-xl border border-zinc-200 p-6">
 
-          <p className="text-xs text-zinc-400 mb-3">
+            <h3 className="font-bold text-lg text-zinc-900 mb-4">Old Pending Payment</h3>
 
-            One-time opening balance carried over from before this ledger started. Recorded as a Debit.
+            <p className="text-xs text-zinc-400 mb-3">
 
-          </p>
+              One-time opening balance carried over from before this ledger started. Recorded as a Debit.
 
-          {!editingOpening ? (
+            </p>
 
-            <div className="flex items-center gap-4 flex-wrap">
+            {!editingOpening ? (
 
-              <p className="text-2xl font-bold tabular-nums text-zinc-900">
+              <div className="flex items-center gap-4 flex-wrap">
 
-                Rs. {openingBalance.toLocaleString()}
+                <p className="text-2xl font-bold tabular-nums text-zinc-900">
 
-              </p>
+                  Rs. {openingBalance.toLocaleString()}
 
-              <button
-                onClick={() => {
-                  setOpeningBalanceInput(String(openingBalance))
-                  setEditingOpening(true)
-                }}
-                className="bg-white border border-zinc-300 text-zinc-700 px-5 py-2.5 rounded-xl text-sm font-semibold hover:bg-zinc-50"
-              >
+                </p>
 
-                Edit
+                <button
+                  onClick={() => {
+                    setOpeningBalanceInput(String(openingBalance))
+                    setEditingOpening(true)
+                  }}
+                  className="bg-white border border-zinc-300 text-zinc-700 px-5 py-2.5 rounded-xl text-sm font-semibold hover:bg-zinc-50"
+                >
 
-              </button>
+                  Edit
 
-            </div>
+                </button>
 
-          ) : (
+              </div>
+
+            ) : (
+
+              <div className="flex gap-3 flex-wrap">
+
+                <input
+                  type="number"
+                  value={openingBalanceInput}
+                  onChange={(e) => setOpeningBalanceInput(e.target.value)}
+                  placeholder="Old pending amount"
+                  className="border border-zinc-300 rounded-xl px-4 py-2.5 w-64"
+                />
+
+                <button
+                  onClick={() => setOpeningConfirmStep(1)}
+                  disabled={savingOpening}
+                  className="bg-zinc-900 text-white px-5 py-2.5 rounded-xl text-sm font-semibold disabled:opacity-50"
+                >
+
+                  {savingOpening ? 'Saving...' : 'Save'}
+
+                </button>
+
+                <button
+                  onClick={() => setEditingOpening(false)}
+                  disabled={savingOpening}
+                  className="bg-white border border-zinc-300 text-zinc-700 px-5 py-2.5 rounded-xl text-sm font-semibold hover:bg-zinc-50 disabled:opacity-50"
+                >
+
+                  Cancel
+
+                </button>
+
+              </div>
+
+            )}
+
+          </div>
+
+        )}
+
+        {!isViewer && (
+
+          <div className="bg-white rounded-[28px] shadow-xl border border-zinc-200 p-6">
+
+            <h3 className="font-bold text-lg text-zinc-900 mb-4">Add Payment</h3>
 
             <div className="flex gap-3 flex-wrap">
 
               <input
                 type="number"
-                value={openingBalanceInput}
-                onChange={(e) => setOpeningBalanceInput(e.target.value)}
-                placeholder="Old pending amount"
-                className="border border-zinc-300 rounded-xl px-4 py-2.5 w-64"
+                value={paymentAmount}
+                onChange={(e) => setPaymentAmount(e.target.value)}
+                placeholder="Amount"
+                className="border border-zinc-300 rounded-xl px-4 py-2.5 w-40"
+              />
+
+              <input
+                type="date"
+                value={paymentDate}
+                onChange={(e) => setPaymentDate(e.target.value)}
+                className="border border-zinc-300 rounded-xl px-4 py-2.5"
+              />
+
+              <input
+                value={paymentNote}
+                onChange={(e) => setPaymentNote(e.target.value)}
+                placeholder="Note (optional)"
+                className="border border-zinc-300 rounded-xl px-4 py-2.5 flex-1 min-w-[180px]"
               />
 
               <button
-                onClick={() => setOpeningConfirmStep(1)}
-                disabled={savingOpening}
-                className="bg-zinc-900 text-white px-5 py-2.5 rounded-xl text-sm font-semibold disabled:opacity-50"
+                onClick={addPayment}
+                disabled={savingPayment}
+                className="bg-green-600 text-white px-5 py-2.5 rounded-xl font-bold text-sm disabled:opacity-50"
               >
 
-                {savingOpening ? 'Saving...' : 'Save'}
-
-              </button>
-
-              <button
-                onClick={() => setEditingOpening(false)}
-                disabled={savingOpening}
-                className="bg-white border border-zinc-300 text-zinc-700 px-5 py-2.5 rounded-xl text-sm font-semibold hover:bg-zinc-50 disabled:opacity-50"
-              >
-
-                Cancel
+                {savingPayment ? 'Saving...' : 'Add Payment'}
 
               </button>
 
             </div>
 
-          )}
-
-        </div>
-
-        <div className="bg-white rounded-[28px] shadow-xl border border-zinc-200 p-6">
-
-          <h3 className="font-bold text-lg text-zinc-900 mb-4">Add Payment</h3>
-
-          <div className="flex gap-3 flex-wrap">
-
-            <input
-              type="number"
-              value={paymentAmount}
-              onChange={(e) => setPaymentAmount(e.target.value)}
-              placeholder="Amount"
-              className="border border-zinc-300 rounded-xl px-4 py-2.5 w-40"
-            />
-
-            <input
-              type="date"
-              value={paymentDate}
-              onChange={(e) => setPaymentDate(e.target.value)}
-              className="border border-zinc-300 rounded-xl px-4 py-2.5"
-            />
-
-            <input
-              value={paymentNote}
-              onChange={(e) => setPaymentNote(e.target.value)}
-              placeholder="Note (optional)"
-              className="border border-zinc-300 rounded-xl px-4 py-2.5 flex-1 min-w-[180px]"
-            />
-
-            <button
-              onClick={addPayment}
-              disabled={savingPayment}
-              className="bg-green-600 text-white px-5 py-2.5 rounded-xl font-bold text-sm disabled:opacity-50"
-            >
-
-              {savingPayment ? 'Saving...' : 'Add Payment'}
-
-            </button>
-
           </div>
 
-        </div>
+        )}
 
         <div className="bg-white rounded-[28px] shadow-xl border border-zinc-200 p-6">
 

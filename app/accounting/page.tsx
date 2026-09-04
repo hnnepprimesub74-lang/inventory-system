@@ -6,12 +6,15 @@ import { supabase } from '../../lib/supabase'
 import * as XLSX from 'xlsx'
 import { saveAs } from 'file-saver'
 import MonthPicker from '../../components/MonthPicker'
+import { useViewer } from '../../components/ViewerContext'
 
 function normalizeName(name: any) {
   return (name || '').toString().trim().toLowerCase()
 }
 
 export default function AccountingPage() {
+
+  const isViewer = useViewer()
 
   const router = useRouter()
 
@@ -268,50 +271,54 @@ export default function AccountingPage() {
 
         </button>
 
-        <div className="bg-white rounded-[28px] shadow-xl border border-zinc-200 p-6">
+        {!isViewer && (
 
-          <h3 className="font-bold text-lg text-zinc-900 mb-4">
+          <div className="bg-white rounded-[28px] shadow-xl border border-zinc-200 p-6">
 
-            Add Supplier
+            <h3 className="font-bold text-lg text-zinc-900 mb-4">
 
-          </h3>
+              Add Supplier
 
-          <p className="text-xs text-zinc-400 mb-3">
+            </h3>
 
-            Use the exact same name here as the "Seller / Supplier" field on Add Stock, so purchases link up automatically.
+            <p className="text-xs text-zinc-400 mb-3">
 
-          </p>
+              Use the exact same name here as the "Seller / Supplier" field on Add Stock, so purchases link up automatically.
 
-          <div className="flex gap-3 flex-wrap">
+            </p>
 
-            <input
-              value={newSupplierName}
-              onChange={(e) => setNewSupplierName(e.target.value)}
-              placeholder="Supplier name"
-              className="border border-zinc-300 rounded-xl px-4 py-2.5 flex-1 min-w-[220px]"
-            />
+            <div className="flex gap-3 flex-wrap">
 
-            <input
-              type="number"
-              value={newOpeningBalance}
-              onChange={(e) => setNewOpeningBalance(e.target.value)}
-              placeholder="Old Pending Payment (optional)"
-              className="border border-zinc-300 rounded-xl px-4 py-2.5 w-64"
-            />
+              <input
+                value={newSupplierName}
+                onChange={(e) => setNewSupplierName(e.target.value)}
+                placeholder="Supplier name"
+                className="border border-zinc-300 rounded-xl px-4 py-2.5 flex-1 min-w-[220px]"
+              />
 
-            <button
-              onClick={addSupplier}
-              disabled={adding}
-              className="bg-amber-400 border border-amber-500 text-zinc-900 hover:bg-amber-500 transition-colors px-5 py-2.5 rounded-xl text-sm font-semibold disabled:opacity-50"
-            >
+              <input
+                type="number"
+                value={newOpeningBalance}
+                onChange={(e) => setNewOpeningBalance(e.target.value)}
+                placeholder="Old Pending Payment (optional)"
+                className="border border-zinc-300 rounded-xl px-4 py-2.5 w-64"
+              />
 
-              {adding ? 'Adding...' : 'Add Supplier'}
+              <button
+                onClick={addSupplier}
+                disabled={adding}
+                className="bg-amber-400 border border-amber-500 text-zinc-900 hover:bg-amber-500 transition-colors px-5 py-2.5 rounded-xl text-sm font-semibold disabled:opacity-50"
+              >
 
-            </button>
+                {adding ? 'Adding...' : 'Add Supplier'}
+
+              </button>
+
+            </div>
 
           </div>
 
-        </div>
+        )}
 
         <div className="bg-white rounded-[28px] shadow-xl border border-zinc-200 p-6">
 

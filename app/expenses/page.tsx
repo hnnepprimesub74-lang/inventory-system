@@ -6,6 +6,7 @@ import { supabase } from '../../lib/supabase'
 import DatePicker from '../../components/DatePicker'
 import MonthPicker from '../../components/MonthPicker'
 import ConfirmDialog from '../../components/ConfirmDialog'
+import { useViewer } from '../../components/ViewerContext'
 
 function todayISO() {
   return new Date().toISOString().slice(0, 10)
@@ -36,6 +37,7 @@ type EntryForm = {
 export default function ExpensesPage() {
 
   const router = useRouter()
+  const isViewer = useViewer()
 
   const [expenseTypes, setExpenseTypes] = useState<any[]>([])
   const [expenses, setExpenses] = useState<any[]>([])
@@ -292,14 +294,18 @@ export default function ExpensesPage() {
 
           </div>
 
-          <button
-            onClick={() => setShowAddType(true)}
-            className="bg-amber-400 border border-amber-500 text-zinc-900 hover:bg-amber-500 transition-colors px-4 py-2 rounded-xl text-sm font-semibold"
-          >
+          {!isViewer && (
 
-            + Add Expense Type
+            <button
+              onClick={() => setShowAddType(true)}
+              className="bg-amber-400 border border-amber-500 text-zinc-900 hover:bg-amber-500 transition-colors px-4 py-2 rounded-xl text-sm font-semibold"
+            >
 
-          </button>
+              + Add Expense Type
+
+            </button>
+
+          )}
 
         </div>
 
@@ -361,36 +367,40 @@ export default function ExpensesPage() {
 
                 </div>
 
-                <div className="flex gap-3 flex-wrap items-end mb-5">
+                {!isViewer && (
 
-                  <DatePicker value={form.date} onChange={(v) => updateForm(type.id, { date: v })} />
+                  <div className="flex gap-3 flex-wrap items-end mb-5">
 
-                  <input
-                    type="number"
-                    value={form.amount}
-                    onChange={(e) => updateForm(type.id, { amount: e.target.value })}
-                    placeholder="Amount"
-                    className="border border-zinc-300 rounded-xl px-4 py-2.5 w-40"
-                  />
+                    <DatePicker value={form.date} onChange={(v) => updateForm(type.id, { date: v })} />
 
-                  <input
-                    value={form.remark}
-                    onChange={(e) => updateForm(type.id, { remark: e.target.value })}
-                    placeholder="Remark (optional)"
-                    className="border border-zinc-300 rounded-xl px-4 py-2.5 flex-1 min-w-[180px]"
-                  />
+                    <input
+                      type="number"
+                      value={form.amount}
+                      onChange={(e) => updateForm(type.id, { amount: e.target.value })}
+                      placeholder="Amount"
+                      className="border border-zinc-300 rounded-xl px-4 py-2.5 w-40"
+                    />
 
-                  <button
-                    onClick={() => addExpense(type.id)}
-                    disabled={savingTypeId === type.id}
-                    className="bg-green-600 text-white px-5 py-2.5 rounded-xl font-bold text-sm disabled:opacity-50"
-                  >
+                    <input
+                      value={form.remark}
+                      onChange={(e) => updateForm(type.id, { remark: e.target.value })}
+                      placeholder="Remark (optional)"
+                      className="border border-zinc-300 rounded-xl px-4 py-2.5 flex-1 min-w-[180px]"
+                    />
 
-                    {savingTypeId === type.id ? 'Saving...' : 'Add Expense'}
+                    <button
+                      onClick={() => addExpense(type.id)}
+                      disabled={savingTypeId === type.id}
+                      className="bg-green-600 text-white px-5 py-2.5 rounded-xl font-bold text-sm disabled:opacity-50"
+                    >
 
-                  </button>
+                      {savingTypeId === type.id ? 'Saving...' : 'Add Expense'}
 
-                </div>
+                    </button>
+
+                  </div>
+
+                )}
 
                 {typeExpenses.length === 0 ? (
 
@@ -409,7 +419,9 @@ export default function ExpensesPage() {
                           <th className="pb-3 pr-4 text-sm font-medium text-zinc-500">Date</th>
                           <th className="pb-3 pr-4 text-sm font-medium text-zinc-500">Remark</th>
                           <th className="pb-3 pr-4 text-sm font-medium text-zinc-500 text-right">Amount</th>
-                          <th className="pb-3 text-sm font-medium text-zinc-500 text-right">Actions</th>
+                          {!isViewer && (
+                            <th className="pb-3 text-sm font-medium text-zinc-500 text-right">Actions</th>
+                          )}
 
                         </tr>
 
@@ -419,7 +431,7 @@ export default function ExpensesPage() {
 
                         {typeExpenses.map((e) =>
 
-                          editingId === e.id ? (
+                          !isViewer && editingId === e.id ? (
 
                             <tr key={e.id} className="bg-indigo-50/40">
 
@@ -476,23 +488,25 @@ export default function ExpensesPage() {
                               <td className="py-3 pr-4 text-right tabular-nums font-semibold text-zinc-900">
                                 Rs. {Number(e.amount).toLocaleString('en-IN')}
                               </td>
-                              <td className="py-3 text-right whitespace-nowrap">
+                              {!isViewer && (
+                                <td className="py-3 text-right whitespace-nowrap">
 
-                                <button
-                                  onClick={() => startEdit(e)}
-                                  className="text-xs font-semibold text-indigo-600 hover:text-indigo-800 mr-3"
-                                >
-                                  Edit
-                                </button>
+                                  <button
+                                    onClick={() => startEdit(e)}
+                                    className="text-xs font-semibold text-indigo-600 hover:text-indigo-800 mr-3"
+                                  >
+                                    Edit
+                                  </button>
 
-                                <button
-                                  onClick={() => setDeleteTarget(e)}
-                                  className="text-xs font-semibold text-red-600 hover:text-red-800"
-                                >
-                                  Delete
-                                </button>
+                                  <button
+                                    onClick={() => setDeleteTarget(e)}
+                                    className="text-xs font-semibold text-red-600 hover:text-red-800"
+                                  >
+                                    Delete
+                                  </button>
 
-                              </td>
+                                </td>
+                              )}
 
                             </tr>
 

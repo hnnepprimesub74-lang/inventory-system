@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { supabase } from '../../lib/supabase'
 import MonthPicker from '../../components/MonthPicker'
 import ConfirmDialog from '../../components/ConfirmDialog'
+import { useViewer } from '../../components/ViewerContext'
 
 function currentMonth() {
   return new Date().toISOString().slice(0, 7)
@@ -35,6 +36,7 @@ function rateForMonth(rates: any[], month: string) {
 export default function RentPage() {
 
   const router = useRouter()
+  const isViewer = useViewer()
 
   const [rentRates, setRentRates] = useState<any[]>([])
   const [payments, setPayments] = useState<any[]>([])
@@ -358,96 +360,104 @@ export default function RentPage() {
 
         </div>
 
-        <div className="bg-white rounded-[28px] shadow-xl border border-zinc-200 p-6">
+        {!isViewer && (
 
-          <h3 className="font-bold text-lg text-zinc-900 mb-4">Set Monthly Rent</h3>
+          <div className="bg-white rounded-[28px] shadow-xl border border-zinc-200 p-6">
 
-          <p className="text-xs text-zinc-400 mb-4">
+            <h3 className="font-bold text-lg text-zinc-900 mb-4">Set Monthly Rent</h3>
 
-            Set the rent rate effective from a given month onward — e.g. Rs. 10,000 from Jan 2026, then Rs. 12,000 from Oct 2026 onward.
+            <p className="text-xs text-zinc-400 mb-4">
 
-          </p>
+              Set the rent rate effective from a given month onward — e.g. Rs. 10,000 from Jan 2026, then Rs. 12,000 from Oct 2026 onward.
 
-          <div className="flex gap-3 flex-wrap mb-5">
+            </p>
 
-            <MonthPicker value={newRateMonth} onChange={setNewRateMonth} />
+            <div className="flex gap-3 flex-wrap mb-5">
 
-            <input
-              type="number"
-              value={newRateAmount}
-              onChange={(e) => setNewRateAmount(e.target.value)}
-              placeholder="Rent amount"
-              className="border border-zinc-300 rounded-xl px-4 py-2.5 w-48"
-            />
+              <MonthPicker value={newRateMonth} onChange={setNewRateMonth} />
 
-            <button
-              onClick={() => {
+              <input
+                type="number"
+                value={newRateAmount}
+                onChange={(e) => setNewRateAmount(e.target.value)}
+                placeholder="Rent amount"
+                className="border border-zinc-300 rounded-xl px-4 py-2.5 w-48"
+              />
 
-                if (!Number(newRateAmount) || Number(newRateAmount) <= 0) {
+              <button
+                onClick={() => {
 
-                  alert('Enter a valid amount')
-                  return
+                  if (!Number(newRateAmount) || Number(newRateAmount) <= 0) {
 
-                }
+                    alert('Enter a valid amount')
+                    return
 
-                setConfirmNewRate(true)
+                  }
 
-              }}
-              disabled={savingRate}
-              className="bg-zinc-900 text-white px-5 py-2.5 rounded-xl text-sm font-semibold disabled:opacity-50"
-            >
+                  setConfirmNewRate(true)
 
-              {savingRate ? 'Saving...' : 'Set Rate'}
+                }}
+                disabled={savingRate}
+                className="bg-zinc-900 text-white px-5 py-2.5 rounded-xl text-sm font-semibold disabled:opacity-50"
+              >
 
-            </button>
+                {savingRate ? 'Saving...' : 'Set Rate'}
 
-          </div>
+              </button>
 
-        </div>
-
-        <div className="bg-white rounded-[28px] shadow-xl border border-zinc-200 p-6">
-
-          <h3 className="font-bold text-lg text-zinc-900 mb-4">Add Rent Payment</h3>
-
-          <div className="flex gap-3 flex-wrap">
-
-            <MonthPicker value={payMonth} onChange={updatePayMonth} />
-
-            <input
-              type="number"
-              value={payAmount}
-              onChange={(e) => setPayAmount(e.target.value)}
-              placeholder="Amount"
-              className="border border-zinc-300 rounded-xl px-4 py-2.5 w-40"
-            />
-
-            <input
-              type="date"
-              value={payDate}
-              onChange={(e) => setPayDate(e.target.value)}
-              className="border border-zinc-300 rounded-xl px-4 py-2.5"
-            />
-
-            <input
-              value={payNote}
-              onChange={(e) => setPayNote(e.target.value)}
-              placeholder="Note (optional)"
-              className="border border-zinc-300 rounded-xl px-4 py-2.5 flex-1 min-w-[180px]"
-            />
-
-            <button
-              onClick={addPayment}
-              disabled={saving}
-              className="bg-green-600 text-white px-5 py-2.5 rounded-xl font-bold text-sm disabled:opacity-50"
-            >
-
-              {saving ? 'Saving...' : 'Add Payment'}
-
-            </button>
+            </div>
 
           </div>
 
-        </div>
+        )}
+
+        {!isViewer && (
+
+          <div className="bg-white rounded-[28px] shadow-xl border border-zinc-200 p-6">
+
+            <h3 className="font-bold text-lg text-zinc-900 mb-4">Add Rent Payment</h3>
+
+            <div className="flex gap-3 flex-wrap">
+
+              <MonthPicker value={payMonth} onChange={updatePayMonth} />
+
+              <input
+                type="number"
+                value={payAmount}
+                onChange={(e) => setPayAmount(e.target.value)}
+                placeholder="Amount"
+                className="border border-zinc-300 rounded-xl px-4 py-2.5 w-40"
+              />
+
+              <input
+                type="date"
+                value={payDate}
+                onChange={(e) => setPayDate(e.target.value)}
+                className="border border-zinc-300 rounded-xl px-4 py-2.5"
+              />
+
+              <input
+                value={payNote}
+                onChange={(e) => setPayNote(e.target.value)}
+                placeholder="Note (optional)"
+                className="border border-zinc-300 rounded-xl px-4 py-2.5 flex-1 min-w-[180px]"
+              />
+
+              <button
+                onClick={addPayment}
+                disabled={saving}
+                className="bg-green-600 text-white px-5 py-2.5 rounded-xl font-bold text-sm disabled:opacity-50"
+              >
+
+                {saving ? 'Saving...' : 'Add Payment'}
+
+              </button>
+
+            </div>
+
+          </div>
+
+        )}
 
         <div className="bg-white rounded-[28px] shadow-xl border border-zinc-200 p-6">
 
@@ -555,7 +565,9 @@ export default function RentPage() {
                               <th className="py-2.5 px-5 text-xs font-medium text-zinc-500">Paid Date</th>
                               <th className="py-2.5 px-5 text-xs font-medium text-zinc-500">Note</th>
                               <th className="py-2.5 px-5 text-xs font-medium text-zinc-500 text-right">Amount</th>
-                              <th className="py-2.5 px-5 text-xs font-medium text-zinc-500 text-right">Actions</th>
+                              {!isViewer && (
+                                <th className="py-2.5 px-5 text-xs font-medium text-zinc-500 text-right">Actions</th>
+                              )}
 
                             </tr>
 
@@ -565,7 +577,7 @@ export default function RentPage() {
 
                             {group.records.map((p: any) =>
 
-                              editingPaymentId === p.id ? (
+                              !isViewer && editingPaymentId === p.id ? (
 
                                 <tr key={p.id} className="bg-indigo-50/40">
 
@@ -624,23 +636,25 @@ export default function RentPage() {
                                   <td className="py-2.5 px-5 text-right tabular-nums font-semibold text-zinc-900">
                                     Rs. {Number(p.amount).toLocaleString('en-IN')}
                                   </td>
-                                  <td className="py-2.5 px-5 text-right whitespace-nowrap">
+                                  {!isViewer && (
+                                    <td className="py-2.5 px-5 text-right whitespace-nowrap">
 
-                                    <button
-                                      onClick={() => startEditPayment(p)}
-                                      className="text-xs font-semibold text-indigo-600 hover:text-indigo-800 mr-3"
-                                    >
-                                      Edit
-                                    </button>
+                                      <button
+                                        onClick={() => startEditPayment(p)}
+                                        className="text-xs font-semibold text-indigo-600 hover:text-indigo-800 mr-3"
+                                      >
+                                        Edit
+                                      </button>
 
-                                    <button
-                                      onClick={() => setDeleteTarget(p)}
-                                      className="text-xs font-semibold text-red-600 hover:text-red-800"
-                                    >
-                                      Delete
-                                    </button>
+                                      <button
+                                        onClick={() => setDeleteTarget(p)}
+                                        className="text-xs font-semibold text-red-600 hover:text-red-800"
+                                      >
+                                        Delete
+                                      </button>
 
-                                  </td>
+                                    </td>
+                                  )}
 
                                 </tr>
 
