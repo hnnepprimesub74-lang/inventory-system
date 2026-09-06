@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '../../../lib/supabase'
+import { displayMrp } from '../../../lib/mrp'
 import * as XLSX from 'xlsx'
 import { saveAs } from 'file-saver'
 import MonthPicker from '../../../components/MonthPicker'
@@ -23,6 +24,16 @@ export default function LifetimePurchasePage() {
   const [filterSupplier, setFilterSupplier] = useState('')
   const [filterMonth, setFilterMonth] = useState('')
   const [filterBrand, setFilterBrand] = useState('')
+
+  const [editingProductId, setEditingProductId] = useState<any>(null)
+  const [editName, setEditName] = useState('')
+  const [editCategory, setEditCategory] = useState('')
+  const [editBrand, setEditBrand] = useState('')
+  const [editCost, setEditCost] = useState('')
+  const [editMrp, setEditMrp] = useState('')
+  const [editQty, setEditQty] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({})
 
   useEffect(() => {
 
@@ -74,6 +85,27 @@ export default function LifetimePurchasePage() {
 
   function productFor(id: any) {
     return products.find((p) => p.id === id)
+  }
+
+  function discountPct(mrp: any, cost: any) {
+
+    const mrpNum = Number(mrp)
+    const costNum = Number(cost)
+
+    if (!mrpNum || mrpNum <= 0) return null
+
+    return ((mrpNum - costNum) / mrpNum) * 100
+
+  }
+
+  function productGroupKey(row: any) {
+
+    return [
+      (row.productName || '').trim().toLowerCase(),
+      (row.brand || '').trim().toLowerCase(),
+      (row.category || '').trim().toLowerCase(),
+    ].join('|')
+
   }
 
   const brands = Array.from(
@@ -138,10 +170,156 @@ export default function LifetimePurchasePage() {
         productName: product?.product_name || 'Unknown product',
         category: product?.category || '',
         brand: product?.brand || '',
+        barcode: product?.barcode || '',
+        shade: product?.shade || '',
+        weight: product?.weight || '',
+        costPrice: product?.cost_price,
+        mrp: product?.mrp,
+        image: product?.image_url,
       }
 
     })
     .sort((a: any, b: any) => b.totalAmount - a.totalAmount)
+
+  const productGroupsMap: Record<string, any> = {}
+  const productGroupsList: any[] = []
+
+  productRows.forEach((row: any) => {
+
+    const key = productGroupKey(row)
+
+    if (!productGroupsMap[key]) {
+
+      productGroupsMap[key] = {
+        key,
+        productName: row.productName,
+        category: row.category,
+        brand: row.brand,
+        image: row.image,
+        items: [],
+      }
+
+      productGroupsList.push(productGroupsMap[key])
+
+    }
+
+    if (!productGroupsMap[key].image && row.image) {
+      productGroupsMap[key].image = row.image
+    }
+
+    productGroupsMap[key].items.push(row)
+
+  })
+
+  const productGroups = productGroupsList
+    .map((g: any) => {
+
+      const groupTotalQty = g.items.reduce(
+        (s: number, r: any) => s + Number(r.totalQty || 0),
+        0
+      )
+
+      const groupTotalAmount = g.items.reduce(
+        (s: number, r: any) => s + Number(r.totalAmount || 0),
+        0
+      )
+
+      return { ...g, totalQty: groupTotalQty, totalAmount: groupTotalAmount }
+
+    })
+    .sort((a: any, b: any) => b.totalAmount - a.totalAmount)
+
+  function openEditProduct(row: any) {
+
+    const product = productFor(row.productId)
+
+    if (!product) return
+
+    setEditingProductId(row.productId)
+    setEditName(product.product_name || '')
+    setEditCategory(product.category || '')
+    setEditBrand(product.brand || '')
+    setEditCost(String(product.cost_price ?? ''))
+    setEditMrp(String(product.mrp ?? ''))
+    setEditQty(String(row.totalQty ?? ''))
+
+  }
+
+  async function saveEditProduct() {
+
+    if (!editingProductId) return
+
+    const newQty = Number(editQty)
+
+    if (!Number.isFinite(newQty) || newQty < 0) {
+
+      alert('Total Quantity must be 0 or greater')
+
+      return
+
+    }
+
+    setSaving(true)
+
+    const productTxns = filteredTxns.filter(
+      (t) => t.product_id === editingProductId
+    )
+
+    const oldQty = productTxns.reduce(
+      (s, t) => s + Number(t.quantity || 0),
+      0
+    )
+
+    const delta = newQty - oldQty
+
+    let txnError = null
+
+    if (delta !== 0 && productTxns.length > 0) {
+
+      const target = productTxns[0]
+      const updatedQty = Number(target.quantity || 0) + delta
+
+      const { error } = await supabase
+        .from('stock_transactions')
+        .update({ quantity: updatedQty < 0 ? 0 : updatedQty })
+        .eq('id', target.id)
+
+      txnError = error
+
+    }
+
+    const { error: productError } = await supabase
+      .from('products')
+      .update({
+
+        product_name: editName,
+
+        category: editCategory,
+
+        brand: editBrand,
+
+        cost_price: Number(editCost),
+
+        mrp: Number(editMrp),
+
+      })
+      .eq('id', editingProductId)
+
+    setSaving(false)
+
+    if (txnError || productError) {
+
+      alert(`Failed to save changes: ${txnError?.message || productError?.message}`)
+
+      return
+
+    }
+
+    setEditingProductId(null)
+
+    await load()
+
+  }
 
   function exportProductPurchases() {
 
@@ -301,70 +479,239 @@ export default function LifetimePurchasePage() {
 
         <div className="bg-white rounded-[28px] shadow-xl border border-zinc-200 p-6">
 
-          <h3 className="font-bold text-lg text-zinc-900 mb-4">
+          <div className="flex items-center justify-between flex-wrap gap-3 mb-4">
 
-            Product Purchase Details
+            <h3 className="font-bold text-lg text-zinc-900">
 
-          </h3>
+              Product Purchase Details
+
+            </h3>
+
+            <p className="text-sm text-zinc-500">
+
+              {productGroups.length} product(s) · {totalQty} units · <span className="font-bold text-emerald-600">Rs. {totalAmount.toLocaleString()}</span>
+
+            </p>
+
+          </div>
 
           {loading ? (
 
             <p className="text-zinc-500">Loading...</p>
 
-          ) : productRows.length === 0 ? (
+          ) : productGroups.length === 0 ? (
 
             <p className="text-zinc-500">No purchase data for this filter.</p>
 
           ) : (
 
-            <div className="overflow-x-auto">
+            <div className="space-y-3">
 
-              <table className="w-full border-collapse">
+              {productGroups.map((group: any) => {
 
-                <thead>
+                const isOpen = expandedGroups[group.key] !== false
+                const isEmptyGroup = Number(group.totalQty || 0) <= 0
 
-                  <tr className="text-left">
+                return (
 
-                    <th className="pb-3 pr-4 text-sm font-medium text-zinc-500">Product</th>
-                    <th className="pb-3 pr-4 text-sm font-medium text-zinc-500">Category</th>
-                    <th className="pb-3 pr-4 text-sm font-medium text-zinc-500">Brand</th>
-                    <th className="pb-3 pr-4 text-sm font-medium text-zinc-500 text-right">Total Quantity</th>
-                    <th className="pb-3 text-sm font-medium text-zinc-500 text-right">Total Amount</th>
+                  <div
+                    key={group.key}
+                    className={`border rounded-2xl overflow-hidden border-l-4 ${isEmptyGroup ? 'border-l-red-400 border-zinc-200' : 'border-l-indigo-400 border-zinc-200'}`}
+                  >
 
-                  </tr>
+                    <button
+                      onClick={() =>
+                        setExpandedGroups((prev) => ({ ...prev, [group.key]: prev[group.key] === false }))
+                      }
+                      className="w-full flex items-center gap-4 px-4 py-3 hover:bg-indigo-50/40 transition-colors text-left"
+                    >
 
-                </thead>
+                      {group.image ? (
 
-                <tbody className="divide-y divide-zinc-100">
+                        <img
+                          src={group.image}
+                          alt=""
+                          className="w-12 h-12 rounded-lg object-cover border border-zinc-200 flex-shrink-0"
+                        />
 
-                  {productRows.map((r: any) => (
+                      ) : (
 
-                    <tr key={r.productId}>
+                        <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-indigo-100 to-fuchsia-100 border border-zinc-200 flex-shrink-0" />
 
-                      <td className="py-3 pr-4 font-semibold text-zinc-900">{r.productName}</td>
-                      <td className="py-3 pr-4 text-sm text-zinc-600">{r.category}</td>
-                      <td className="py-3 pr-4 text-sm text-zinc-600">{r.brand}</td>
-                      <td className="py-3 pr-4 text-right tabular-nums">{r.totalQty}</td>
-                      <td className="py-3 text-right tabular-nums font-semibold text-zinc-900">Rs. {r.totalAmount.toLocaleString()}</td>
+                      )}
 
-                    </tr>
+                      <div className="flex-1 min-w-0">
 
-                  ))}
+                        <p className="font-semibold text-zinc-900 truncate">{group.productName}</p>
 
-                </tbody>
+                        <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
 
-                <tfoot>
+                          {group.category && (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-indigo-100 text-indigo-700">
+                              {group.category}
+                            </span>
+                          )}
 
-                  <tr className="border-t-2 border-zinc-200 font-bold text-zinc-900">
+                          {group.brand && (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-fuchsia-100 text-fuchsia-700">
+                              {group.brand}
+                            </span>
+                          )}
 
-                    <td className="pt-3 pr-4" colSpan={4}>Total</td>
-                    <td className="pt-3 text-right tabular-nums">Rs. {totalAmount.toLocaleString()}</td>
+                          <span className="text-xs text-zinc-400">
 
-                  </tr>
+                            {group.items.length} {group.items.length === 1 ? 'variant' : 'variants'}
 
-                </tfoot>
+                          </span>
 
-              </table>
+                        </div>
+
+                      </div>
+
+                      <div className="text-right hidden sm:block flex-shrink-0">
+
+                        <p className="text-xs text-zinc-500">Total Quantity</p>
+                        <p className={`font-bold tabular-nums ${isEmptyGroup ? 'text-red-600' : 'text-indigo-600'}`}>{group.totalQty}</p>
+
+                      </div>
+
+                      <div className="text-right hidden sm:block min-w-[110px] flex-shrink-0">
+
+                        <p className="text-xs text-zinc-500">Total Amount</p>
+                        <p className="font-bold tabular-nums text-emerald-600">Rs. {group.totalAmount.toLocaleString('en-IN')}</p>
+
+                      </div>
+
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        className={`w-4 h-4 text-indigo-400 flex-shrink-0 transition-transform ${isOpen ? 'rotate-90' : ''}`}
+                      >
+
+                        <path d="M9 18l6-6-6-6" strokeLinecap="round" strokeLinejoin="round" />
+
+                      </svg>
+
+                    </button>
+
+                    {isOpen && (
+
+                      <div className="border-t border-zinc-200 overflow-x-auto">
+
+                        <table className="w-full border-collapse">
+
+                          <thead>
+
+                            <tr className="text-left bg-indigo-50/70">
+
+                              <th className="py-2.5 pl-3 pr-4 text-xs font-semibold text-indigo-900/70 uppercase tracking-wide">Barcode</th>
+                              <th className="py-2.5 pr-4 text-xs font-semibold text-indigo-900/70 uppercase tracking-wide">Shade</th>
+                              <th className="py-2.5 pr-4 text-xs font-semibold text-indigo-900/70 uppercase tracking-wide">Weight</th>
+                              <th className="py-2.5 pr-4 text-xs font-semibold text-indigo-900/70 uppercase tracking-wide text-right">Cost</th>
+                              <th className="py-2.5 pr-4 text-xs font-semibold text-indigo-900/70 uppercase tracking-wide text-right">MRP</th>
+                              <th className="py-2.5 pr-4 text-xs font-semibold text-indigo-900/70 uppercase tracking-wide text-right">Discount %</th>
+                              <th className="py-2.5 pr-4 text-xs font-semibold text-indigo-900/70 uppercase tracking-wide text-right">Total Quantity</th>
+                              <th className="py-2.5 pr-4 text-xs font-semibold text-indigo-900/70 uppercase tracking-wide text-right">Total Amount</th>
+                              <th className="py-2.5 pr-3 text-xs font-semibold text-indigo-900/70 uppercase tracking-wide text-right rounded-r-xl">Actions</th>
+
+                            </tr>
+
+                          </thead>
+
+                          <tbody className="divide-y divide-zinc-100">
+
+                            {group.items.map((r: any) => {
+
+                              const mrpDisplay = displayMrp(r.mrp)
+                              const disc = discountPct(mrpDisplay, r.costPrice)
+
+                              return (
+
+                                <tr key={r.productId}>
+
+                                  <td className="py-3 pl-3 pr-4">
+
+                                    <div className="text-sm text-zinc-500">{r.barcode || '—'}</div>
+
+                                    <div className="text-xs text-zinc-400 mt-0.5">Qty {r.totalQty}</div>
+
+                                  </td>
+
+                                  <td className="py-3 pr-4 text-sm text-zinc-600">{r.shade || '—'}</td>
+                                  <td className="py-3 pr-4 text-sm text-zinc-600">{r.weight || '—'}</td>
+                                  <td className="py-3 pr-4 text-sm text-zinc-600 text-right tabular-nums">Rs. {r.costPrice ?? '—'}</td>
+                                  <td className="py-3 pr-4 text-sm text-zinc-600 text-right tabular-nums">{mrpDisplay !== null ? `Rs. ${mrpDisplay}` : '—'}</td>
+
+                                  <td className="py-3 pr-4 text-sm text-right tabular-nums">
+
+                                    {disc !== null ? (
+
+                                      <span className={disc >= 0 ? 'text-green-600 font-semibold' : 'text-red-600 font-semibold'}>
+
+                                        {disc.toFixed(1)}%
+
+                                      </span>
+
+                                    ) : (
+
+                                      <span className="text-zinc-400">—</span>
+
+                                    )}
+
+                                  </td>
+
+                                  <td className="py-3 pr-4 text-right tabular-nums font-semibold text-zinc-900">{r.totalQty}</td>
+                                  <td className="py-3 pr-4 font-bold text-emerald-700 text-right tabular-nums">Rs. {r.totalAmount.toLocaleString()}</td>
+
+                                  <td className="py-3 pr-3 text-right">
+
+                                    <button
+                                      onClick={() => openEditProduct(r)}
+                                      title="Edit"
+                                      className="w-9 h-9 flex items-center justify-center rounded-lg border border-zinc-200 text-zinc-600 hover:bg-blue-50 hover:border-blue-200 hover:text-blue-600 transition-colors"
+                                    >
+
+                                      <svg
+                                        xmlns="http://www.w3.org/2000/svg"
+                                        viewBox="0 0 24 24"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        strokeWidth="1.8"
+                                        className="w-4 h-4"
+                                      >
+
+                                        <path d="M12 20h9" />
+
+                                        <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
+
+                                      </svg>
+
+                                    </button>
+
+                                  </td>
+
+                                </tr>
+
+                              )
+
+                            })}
+
+                          </tbody>
+
+                        </table>
+
+                      </div>
+
+                    )}
+
+                  </div>
+
+                )
+
+              })}
 
             </div>
 
@@ -373,6 +720,136 @@ export default function LifetimePurchasePage() {
         </div>
 
       </div>
+
+      {editingProductId && (
+
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+
+          <div className="bg-white rounded-[32px] shadow-2xl border border-zinc-200 w-full max-w-lg max-h-[90vh] flex flex-col">
+
+            <h2 className="text-2xl sm:text-3xl font-bold px-6 sm:px-8 pt-6 sm:pt-8 pb-4 flex-shrink-0">
+
+              Edit Product
+
+            </h2>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 px-6 sm:px-8 overflow-y-auto">
+
+              <div className="sm:col-span-2">
+
+                <label className="text-xs font-medium text-zinc-500 mb-1.5 block">Product Name</label>
+
+                <input
+                  type="text"
+                  value={editName}
+                  onChange={(e) => setEditName(e.target.value)}
+                  placeholder="Product"
+                  className="w-full border-2 rounded-2xl px-4 py-4"
+                />
+
+              </div>
+
+              <div>
+
+                <label className="text-xs font-medium text-zinc-500 mb-1.5 block">Category</label>
+
+                <input
+                  type="text"
+                  value={editCategory}
+                  onChange={(e) => setEditCategory(e.target.value)}
+                  placeholder="Category"
+                  className="w-full border-2 rounded-2xl px-4 py-4"
+                />
+
+              </div>
+
+              <div>
+
+                <label className="text-xs font-medium text-zinc-500 mb-1.5 block">Brand</label>
+
+                <input
+                  type="text"
+                  value={editBrand}
+                  onChange={(e) => setEditBrand(e.target.value)}
+                  placeholder="Brand"
+                  className="w-full border-2 rounded-2xl px-4 py-4"
+                />
+
+              </div>
+
+              <div>
+
+                <label className="text-xs font-medium text-zinc-500 mb-1.5 block">Cost</label>
+
+                <input
+                  type="number"
+                  value={editCost}
+                  onChange={(e) => setEditCost(e.target.value)}
+                  placeholder="Cost"
+                  className="w-full border-2 rounded-2xl px-4 py-4"
+                />
+
+              </div>
+
+              <div>
+
+                <label className="text-xs font-medium text-zinc-500 mb-1.5 block">MRP</label>
+
+                <input
+                  type="number"
+                  value={editMrp}
+                  onChange={(e) => setEditMrp(e.target.value)}
+                  placeholder="MRP"
+                  className="w-full border-2 rounded-2xl px-4 py-4"
+                />
+
+              </div>
+
+              <div className="sm:col-span-2 pb-6 sm:pb-8">
+
+                <label className="text-xs font-medium text-zinc-500 mb-1.5 block">Total Quantity</label>
+
+                <input
+                  type="number"
+                  value={editQty}
+                  onChange={(e) => setEditQty(e.target.value)}
+                  placeholder="Total Quantity"
+                  className="w-full border-2 rounded-2xl px-4 py-4"
+                />
+
+              </div>
+
+            </div>
+
+            <div className="flex gap-4 px-6 sm:px-8 py-5 border-t border-zinc-200 flex-shrink-0">
+
+              <button
+                onClick={saveEditProduct}
+                disabled={saving}
+                className="flex-1 bg-zinc-900 hover:bg-zinc-800 hover:scale-105 transition-all duration-200 text-white py-4 rounded-2xl font-bold disabled:opacity-50"
+              >
+
+                {saving ? 'Saving...' : 'Update'}
+
+              </button>
+
+              <button
+                onClick={() => setEditingProductId(null)}
+                disabled={saving}
+                className="flex-1 bg-gray-300 py-4 rounded-2xl font-bold"
+              >
+
+                Cancel
+
+              </button>
+
+            </div>
+
+          </div>
+
+        </div>
+
+      )}
 
     </div>
 

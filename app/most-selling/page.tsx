@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '../../lib/supabase'
+import { displayMrp } from '../../lib/mrp'
 import * as XLSX from 'xlsx'
 import { saveAs } from 'file-saver'
 
@@ -74,7 +75,7 @@ export default function MostSellingPage() {
 
   const sellingProducts = products.filter((p) => p.sold > 0)
   const totalUnitsSold = sellingProducts.reduce((s, p) => s + p.sold, 0)
-  const totalRevenue = sellingProducts.reduce((s, p) => s + p.sold * Number(p.mrp || 0), 0)
+  const totalRevenue = sellingProducts.reduce((s, p) => s + p.sold * (displayMrp(p.mrp) || 0), 0)
 
   function exportToExcel() {
 
@@ -92,7 +93,7 @@ export default function MostSellingPage() {
       Brand: p.brand,
       Shade: p.shade,
       'Sold (30d)': p.sold,
-      MRP: p.mrp,
+      MRP: displayMrp(p.mrp) ?? '',
       'Current Stock': p.current_stock,
     }))
 
@@ -207,7 +208,7 @@ export default function MostSellingPage() {
                       <td className="py-3 pr-4 text-sm text-zinc-600">{p.category}</td>
                       <td className="py-3 pr-4 text-sm text-zinc-600">{p.brand}</td>
                       <td className="py-3 pr-4 text-right tabular-nums font-semibold text-indigo-600">{p.sold}</td>
-                      <td className="py-3 pr-4 text-right tabular-nums text-zinc-600">{p.mrp ? `Rs. ${p.mrp}` : '—'}</td>
+                      <td className="py-3 pr-4 text-right tabular-nums text-zinc-600">{displayMrp(p.mrp) !== null ? `Rs. ${displayMrp(p.mrp)}` : '—'}</td>
                       <td className="py-3 text-right tabular-nums text-zinc-600">{p.current_stock}</td>
 
                     </tr>

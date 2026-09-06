@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '../lib/supabase'
+import { displayMrp } from '../lib/mrp'
 import { useViewer } from '../components/ViewerContext'
 import * as XLSX from 'xlsx'
 import { saveAs } from 'file-saver'
@@ -147,6 +148,10 @@ export default function Home() {
   const [sessionNewProduct,
     setSessionNewProduct] =
     useState<any>(null)
+
+  const [finishingStockSession,
+    setFinishingStockSession] =
+    useState(false)
 
   const [stockInHistory,
     setStockInHistory] =
@@ -592,74 +597,98 @@ export default function Home() {
 
     }
 
-    for (const item of sessionItems) {
+    if (finishingStockSession) return
 
-      const currentProduct =
-        products.find(
-          (p) => p.id === item.productId
-        )
+    setFinishingStockSession(true)
 
-      const baseStock =
-        currentProduct
-          ? currentProduct.current_stock
-          : 0
+    try {
 
-      const newStock =
-        Number(baseStock) + Number(item.qty)
+      for (const item of sessionItems) {
 
-      await supabase
-        .from('products')
-        .update({
+        const currentProduct =
+          products.find(
+            (p) => p.id === item.productId
+          )
 
-          current_stock: newStock,
+        const baseStock =
+          currentProduct
+            ? currentProduct.current_stock
+            : 0
 
-          cost_price: Number(item.costPrice),
+        const newStock =
+          Number(baseStock) + Number(item.qty)
 
-        })
-        .eq('id', item.productId)
+        await supabase
+          .from('products')
+          .update({
 
-      await supabase
-        .from('stock_transactions')
-        .insert([
-          {
-
-            product_id: item.productId,
-
-            user_email: userEmail,
-
-            transaction_type: 'ADD',
-
-            quantity: Number(item.qty),
+            current_stock: newStock,
 
             cost_price: Number(item.costPrice),
 
-            seller: sessionSeller,
+          })
+          .eq('id', item.productId)
 
-            stock_date: sessionDate,
+        await supabase
+          .from('stock_transactions')
+          .insert([
+            {
 
-            lot_id: sessionLotId,
+              product_id: item.productId,
 
-            final_stock: newStock,
+              user_email: userEmail,
 
-          },
-        ])
+              transaction_type: 'ADD',
+
+              quantity: Number(item.qty),
+
+              cost_price: Number(item.costPrice),
+
+              seller: sessionSeller,
+
+              stock_date: sessionDate,
+
+              lot_id: sessionLotId,
+
+              final_stock: newStock,
+
+              product_name: currentProduct?.product_name || item.name,
+
+              category: currentProduct?.category || item.category,
+
+              brand: currentProduct?.brand || item.brand,
+
+              shade: currentProduct?.shade || item.shade,
+
+              weight: currentProduct?.weight || null,
+
+              mrp: currentProduct?.mrp ?? null,
+
+            },
+          ])
+
+      }
+
+      const productsData =
+        await fetchProducts()
+
+      await fetchTopSellingProducts(
+        productsData
+      )
+
+      await fetchStockInHistory()
+
+      alert(
+        `Stock lot saved: ${sessionItems.length} product(s) updated`
+      )
+
+      cancelSession()
+
+    } finally {
+
+      setFinishingStockSession(false)
 
     }
-
-    const productsData =
-      await fetchProducts()
-
-    await fetchTopSellingProducts(
-      productsData
-    )
-
-    await fetchStockInHistory()
-
-    alert(
-      `Stock lot saved: ${sessionItems.length} product(s) updated`
-    )
-
-    cancelSession()
 
   }
 
@@ -894,7 +923,7 @@ export default function Home() {
             product.cost_price,
 
           MRP:
-            product.mrp,
+            displayMrp(product.mrp) ?? '',
 
           Stock:
             product.current_stock,
@@ -958,6 +987,15 @@ export default function Home() {
         products
           .map((p) => p.brand)
           .filter((b) => !!b)
+      ),
+    ]
+
+  const uniqueProductNames =
+    [
+      ...new Set(
+        products
+          .map((p) => p.product_name)
+          .filter((n) => !!n)
       ),
     ]
 
@@ -1122,6 +1160,36 @@ export default function Home() {
   return (
 
     <div className="text-black">
+
+      <datalist id="categories">
+
+        {uniqueCategories.filter((c) => !!c).map((cat, index) => (
+
+          <option key={index} value={cat} />
+
+        ))}
+
+      </datalist>
+
+      <datalist id="brands">
+
+        {uniqueBrands.map((b, index) => (
+
+          <option key={index} value={b} />
+
+        ))}
+
+      </datalist>
+
+      <datalist id="productNames">
+
+        {uniqueProductNames.map((n, index) => (
+
+          <option key={index} value={n} />
+
+        ))}
+
+      </datalist>
 
       <div className="max-w-7xl mx-auto space-y-6">
 
@@ -1674,10 +1742,11 @@ export default function Home() {
 
                   <button
                     onClick={finishStockSession}
-                    className="bg-green-600 hover:bg-green-700 transition-colors text-white px-6 py-3 rounded-xl font-bold"
+                    disabled={finishingStockSession}
+                    className="bg-green-600 hover:bg-green-700 transition-colors text-white px-6 py-3 rounded-xl font-bold disabled:opacity-50"
                   >
 
-                    Done
+                    {finishingStockSession ? 'Saving...' : 'Done'}
 
                   </button>
 
@@ -1706,106 +1775,190 @@ export default function Home() {
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
 
-                    <input
-                      placeholder="Product Name"
-                      value={sessionNewProduct.name}
-                      onChange={(e) =>
-                        setSessionNewProduct({
-                          ...sessionNewProduct,
-                          name: e.target.value,
-                        })
-                      }
-                      className="border-2 rounded-xl px-3 py-2.5 bg-white"
-                    />
+                    <div className="sm:col-span-2">
 
-                    <input
-                      list="categories"
-                      placeholder="Category"
-                      value={sessionNewProduct.category}
-                      onChange={(e) =>
-                        setSessionNewProduct({
-                          ...sessionNewProduct,
-                          category: e.target.value,
-                        })
-                      }
-                      className="border-2 rounded-xl px-3 py-2.5 bg-white"
-                    />
+                      <label className="text-xs font-medium text-zinc-500 mb-1 block">Product Name</label>
 
-                    <input
-                      list="brands"
-                      placeholder="Brand"
-                      value={sessionNewProduct.brand}
-                      onChange={(e) =>
-                        setSessionNewProduct({
-                          ...sessionNewProduct,
-                          brand: e.target.value,
-                        })
-                      }
-                      className="border-2 rounded-xl px-3 py-2.5 bg-white"
-                    />
+                      <input
+                        list="productNames"
+                        placeholder="Product Name"
+                        value={sessionNewProduct.name}
+                        onChange={(e) => {
 
-                    <input
-                      placeholder="Shade"
-                      value={sessionNewProduct.shade}
-                      onChange={(e) =>
-                        setSessionNewProduct({
-                          ...sessionNewProduct,
-                          shade: e.target.value,
-                        })
-                      }
-                      className="border-2 rounded-xl px-3 py-2.5 bg-white"
-                    />
+                          const name = e.target.value
 
-                    <input
-                      placeholder="Weight"
-                      value={sessionNewProduct.weight}
-                      onChange={(e) =>
-                        setSessionNewProduct({
-                          ...sessionNewProduct,
-                          weight: e.target.value,
-                        })
-                      }
-                      className="border-2 rounded-xl px-3 py-2.5 bg-white"
-                    />
+                          const match = products.find(
+                            (p) =>
+                              p.product_name &&
+                              p.product_name.toLowerCase() === name.toLowerCase()
+                          )
 
-                    <input
-                      type="number"
-                      placeholder="MRP"
-                      value={sessionNewProduct.mrp}
-                      onChange={(e) =>
-                        setSessionNewProduct({
-                          ...sessionNewProduct,
-                          mrp: e.target.value,
-                        })
-                      }
-                      className="border-2 rounded-xl px-3 py-2.5 bg-white"
-                    />
+                          if (match) {
 
-                    <input
-                      type="number"
-                      placeholder="Cost Price"
-                      value={sessionNewProduct.costPrice}
-                      onChange={(e) =>
-                        setSessionNewProduct({
-                          ...sessionNewProduct,
-                          costPrice: e.target.value,
-                        })
-                      }
-                      className="border-2 rounded-xl px-3 py-2.5 bg-white"
-                    />
+                            setSessionNewProduct({
+                              ...sessionNewProduct,
+                              name,
+                              category: match.category || '',
+                              brand: match.brand || '',
+                              weight: match.weight || '',
+                              mrp: match.mrp != null ? String(match.mrp) : '',
+                              costPrice:
+                                match.cost_price != null
+                                  ? String(match.cost_price)
+                                  : sessionNewProduct.costPrice,
+                            })
 
-                    <input
-                      type="number"
-                      placeholder="Quantity"
-                      value={sessionNewProduct.qty}
-                      onChange={(e) =>
-                        setSessionNewProduct({
-                          ...sessionNewProduct,
-                          qty: e.target.value,
-                        })
-                      }
-                      className="border-2 rounded-xl px-3 py-2.5 bg-white"
-                    />
+                          } else {
+
+                            setSessionNewProduct({
+                              ...sessionNewProduct,
+                              name,
+                            })
+
+                          }
+
+                        }}
+                        className="w-full border-2 rounded-xl px-3 py-2.5 bg-white"
+                      />
+
+                      <p className="text-xs text-zinc-400 mt-1">
+
+                        Pick an existing name to auto-fill Category, Brand, Weight, MRP &amp; Cost — you'll just need to add the Shade.
+
+                      </p>
+
+                    </div>
+
+                    <div>
+
+                      <label className="text-xs font-medium text-zinc-500 mb-1 block">Category</label>
+
+                      <input
+                        list="categories"
+                        placeholder="Category"
+                        value={sessionNewProduct.category}
+                        onChange={(e) =>
+                          setSessionNewProduct({
+                            ...sessionNewProduct,
+                            category: e.target.value,
+                          })
+                        }
+                        className="w-full border-2 rounded-xl px-3 py-2.5 bg-white"
+                      />
+
+                    </div>
+
+                    <div>
+
+                      <label className="text-xs font-medium text-zinc-500 mb-1 block">Brand</label>
+
+                      <input
+                        list="brands"
+                        placeholder="Brand"
+                        value={sessionNewProduct.brand}
+                        onChange={(e) =>
+                          setSessionNewProduct({
+                            ...sessionNewProduct,
+                            brand: e.target.value,
+                          })
+                        }
+                        className="w-full border-2 rounded-xl px-3 py-2.5 bg-white"
+                      />
+
+                    </div>
+
+                    <div>
+
+                      <label className="text-xs font-medium text-zinc-500 mb-1 block">Shade</label>
+
+                      <input
+                        placeholder="Shade"
+                        value={sessionNewProduct.shade}
+                        onChange={(e) =>
+                          setSessionNewProduct({
+                            ...sessionNewProduct,
+                            shade: e.target.value,
+                          })
+                        }
+                        className="w-full border-2 rounded-xl px-3 py-2.5 bg-white"
+                      />
+
+                    </div>
+
+                    <div>
+
+                      <label className="text-xs font-medium text-zinc-500 mb-1 block">Weight</label>
+
+                      <input
+                        placeholder="Weight"
+                        value={sessionNewProduct.weight}
+                        onChange={(e) =>
+                          setSessionNewProduct({
+                            ...sessionNewProduct,
+                            weight: e.target.value,
+                          })
+                        }
+                        className="w-full border-2 rounded-xl px-3 py-2.5 bg-white"
+                      />
+
+                    </div>
+
+                    <div>
+
+                      <label className="text-xs font-medium text-zinc-500 mb-1 block">MRP</label>
+
+                      <input
+                        type="number"
+                        placeholder="MRP"
+                        value={sessionNewProduct.mrp}
+                        onChange={(e) =>
+                          setSessionNewProduct({
+                            ...sessionNewProduct,
+                            mrp: e.target.value,
+                          })
+                        }
+                        className="w-full border-2 rounded-xl px-3 py-2.5 bg-white"
+                      />
+
+                    </div>
+
+                    <div>
+
+                      <label className="text-xs font-medium text-zinc-500 mb-1 block">Cost Price</label>
+
+                      <input
+                        type="number"
+                        placeholder="Cost Price"
+                        value={sessionNewProduct.costPrice}
+                        onChange={(e) =>
+                          setSessionNewProduct({
+                            ...sessionNewProduct,
+                            costPrice: e.target.value,
+                          })
+                        }
+                        className="w-full border-2 rounded-xl px-3 py-2.5 bg-white"
+                      />
+
+                    </div>
+
+                    <div>
+
+                      <label className="text-xs font-medium text-zinc-500 mb-1 block">Quantity</label>
+
+                      <input
+                        type="number"
+                        placeholder="Quantity"
+                        value={sessionNewProduct.qty}
+                        onChange={(e) =>
+                          setSessionNewProduct({
+                            ...sessionNewProduct,
+                            qty: e.target.value,
+                          })
+                        }
+                        className="w-full border-2 rounded-xl px-3 py-2.5 bg-white"
+                      />
+
+                    </div>
 
                   </div>
 
@@ -1965,30 +2118,80 @@ export default function Home() {
 
         {/* INVENTORY */}
 
-        <div className="bg-white rounded-[28px] shadow-xl border border-zinc-200 p-8">
+        <div className="bg-white rounded-[28px] shadow-xl border border-zinc-200 p-8 overflow-hidden relative">
+
+          <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-indigo-500 via-fuchsia-500 to-amber-400" />
 
           <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-6">
 
-            <div>
+            <div className="flex items-center gap-4">
 
-              <h2 className="text-3xl font-bold text-zinc-900">
+              <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-indigo-500 to-fuchsia-500 text-white flex items-center justify-center flex-shrink-0 shadow-lg shadow-indigo-200">
 
-                Inventory Products
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                  className="w-6 h-6"
+                >
 
-              </h2>
+                  <path d="M3 7l9-4 9 4-9 4-9-4z" strokeLinecap="round" strokeLinejoin="round" />
+                  <path d="M3 7v10l9 4 9-4V7" strokeLinecap="round" strokeLinejoin="round" />
+                  <path d="M12 11v10" strokeLinecap="round" />
 
-              <p className="text-sm text-zinc-500 mt-1">
+                </svg>
 
-                {productGroups.length} unique {productGroups.length === 1 ? 'product' : 'products'} · {filteredProducts.length} {filteredProducts.length === 1 ? 'variant' : 'variants'}
+              </div>
 
-              </p>
+              <div>
+
+                <h2 className="text-3xl font-bold text-zinc-900 tracking-tight">
+
+                  Inventory Products
+
+                </h2>
+
+                <div className="flex flex-wrap items-center gap-2 mt-1.5">
+
+                  <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-indigo-100 text-indigo-700">
+
+                    {productGroups.length} {productGroups.length === 1 ? 'product' : 'products'}
+
+                  </span>
+
+                  <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-fuchsia-100 text-fuchsia-700">
+
+                    {filteredProducts.length} {filteredProducts.length === 1 ? 'variant' : 'variants'}
+
+                  </span>
+
+                </div>
+
+              </div>
 
             </div>
 
             <button
               onClick={exportToExcel}
-              className="bg-green-600 text-white px-5 py-3 rounded-2xl font-bold self-start lg:self-auto"
+              className="bg-gradient-to-r from-emerald-500 to-green-600 hover:from-emerald-600 hover:to-green-700 transition-all text-white px-5 py-3 rounded-2xl font-bold self-start lg:self-auto shadow-lg shadow-green-200 flex items-center gap-2"
             >
+
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                className="w-4 h-4"
+              >
+
+                <path d="M12 3v12" strokeLinecap="round" />
+                <path d="M7 10l5 5 5-5" strokeLinecap="round" strokeLinejoin="round" />
+                <path d="M4 19h16" strokeLinecap="round" />
+
+              </svg>
 
               Export Excel
 
@@ -1996,7 +2199,7 @@ export default function Home() {
 
           </div>
 
-          <div className="flex flex-wrap gap-3 items-center mb-6">
+          <div className="flex flex-wrap gap-3 items-center mb-6 bg-zinc-50 border border-zinc-200 rounded-2xl p-3">
 
             <div className="relative flex-1 min-w-[240px]">
 
@@ -2006,7 +2209,7 @@ export default function Home() {
                 fill="none"
                 stroke="currentColor"
                 strokeWidth="1.8"
-                className="w-4 h-4 absolute left-4 top-1/2 -translate-y-1/2 text-zinc-400"
+                className="w-4 h-4 absolute left-4 top-1/2 -translate-y-1/2 text-indigo-400"
               >
 
                 <circle cx="11" cy="11" r="7" />
@@ -2020,7 +2223,7 @@ export default function Home() {
                 placeholder="Search product, brand, category or barcode"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className="w-full border border-zinc-300 focus:ring-4 focus:ring-indigo-100 focus:border-indigo-500 outline-none rounded-xl pl-10 pr-4 py-2.5 text-sm"
+                className="w-full border border-zinc-300 bg-white focus:ring-4 focus:ring-indigo-100 focus:border-indigo-500 outline-none rounded-xl pl-10 pr-4 py-2.5 text-sm"
               />
 
             </div>
@@ -2028,7 +2231,7 @@ export default function Home() {
             <select
               value={selectedCategory}
               onChange={(e) => setSelectedCategory(e.target.value)}
-              className="border border-zinc-300 rounded-xl px-4 py-2.5 text-sm min-w-[160px]"
+              className="border border-zinc-300 bg-white focus:ring-4 focus:ring-indigo-100 focus:border-indigo-500 outline-none rounded-xl px-4 py-2.5 text-sm min-w-[160px] font-medium text-zinc-700"
             >
 
               <option value="ALL">All Categories</option>
@@ -2042,7 +2245,7 @@ export default function Home() {
             <select
               value={selectedBrand}
               onChange={(e) => setSelectedBrand(e.target.value)}
-              className="border border-zinc-300 rounded-xl px-4 py-2.5 text-sm min-w-[160px]"
+              className="border border-zinc-300 bg-white focus:ring-4 focus:ring-indigo-100 focus:border-indigo-500 outline-none rounded-xl px-4 py-2.5 text-sm min-w-[160px] font-medium text-zinc-700"
             >
 
               <option value="ALL">All Brands</option>
@@ -2082,20 +2285,21 @@ export default function Home() {
 
               {productGroups.map((group: any) => {
 
-                const isOpen = !!expandedGroups[group.key]
+                const isOpen = expandedGroups[group.key] !== false
+                const isEmptyGroup = Number(group.totalStock || 0) <= 0
 
                 return (
 
                   <div
                     key={group.key}
-                    className="border border-zinc-200 rounded-2xl overflow-hidden"
+                    className={`border rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-shadow border-l-4 ${isEmptyGroup ? 'border-l-red-400 border-zinc-200' : 'border-l-indigo-400 border-zinc-200'}`}
                   >
 
                     <button
                       onClick={() =>
-                        setExpandedGroups((prev) => ({ ...prev, [group.key]: !prev[group.key] }))
+                        setExpandedGroups((prev) => ({ ...prev, [group.key]: prev[group.key] === false }))
                       }
-                      className="w-full flex items-center gap-4 px-5 py-4 hover:bg-zinc-50 transition-colors text-left"
+                      className="w-full flex items-center gap-4 px-5 py-4 hover:bg-indigo-50/40 transition-colors text-left"
                     >
 
                       {group.image ? (
@@ -2108,7 +2312,7 @@ export default function Home() {
 
                       ) : (
 
-                        <div className="w-12 h-12 rounded-lg bg-zinc-100 border border-zinc-200 flex items-center justify-center text-zinc-300 flex-shrink-0">
+                        <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-indigo-100 to-fuchsia-100 border border-zinc-200 flex items-center justify-center text-indigo-300 flex-shrink-0">
 
                           <svg
                             xmlns="http://www.w3.org/2000/svg"
@@ -2135,28 +2339,41 @@ export default function Home() {
 
                         <p className="font-semibold text-zinc-900 truncate">{group.productName}</p>
 
-                        <p className="text-xs text-zinc-500 mt-0.5 truncate">
+                        <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
 
-                          {group.category}
-                          {group.brand && ` · ${group.brand}`}
-                          {' · '}
-                          {group.variants.length} {group.variants.length === 1 ? 'variant' : 'variants'}
+                          {group.category && (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-indigo-100 text-indigo-700">
+                              {group.category}
+                            </span>
+                          )}
 
-                        </p>
+                          {group.brand && (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-fuchsia-100 text-fuchsia-700">
+                              {group.brand}
+                            </span>
+                          )}
+
+                          <span className="text-xs text-zinc-400">
+
+                            {group.variants.length} {group.variants.length === 1 ? 'variant' : 'variants'}
+
+                          </span>
+
+                        </div>
 
                       </div>
 
                       <div className="text-right hidden sm:block flex-shrink-0">
 
                         <p className="text-xs text-zinc-500">Total Stock</p>
-                        <p className="font-semibold tabular-nums text-zinc-900">{group.totalStock}</p>
+                        <p className={`font-bold tabular-nums ${isEmptyGroup ? 'text-red-600' : 'text-indigo-600'}`}>{group.totalStock}</p>
 
                       </div>
 
                       <div className="text-right hidden sm:block min-w-[110px] flex-shrink-0">
 
                         <p className="text-xs text-zinc-500">Total Value</p>
-                        <p className="font-semibold tabular-nums text-zinc-900">Rs. {group.totalValue.toLocaleString('en-IN')}</p>
+                        <p className="font-bold tabular-nums text-emerald-600">Rs. {group.totalValue.toLocaleString('en-IN')}</p>
 
                       </div>
 
@@ -2166,7 +2383,7 @@ export default function Home() {
                         fill="none"
                         stroke="currentColor"
                         strokeWidth="2"
-                        className={`w-4 h-4 text-zinc-400 flex-shrink-0 transition-transform ${isOpen ? 'rotate-90' : ''}`}
+                        className={`w-4 h-4 text-indigo-400 flex-shrink-0 transition-transform ${isOpen ? 'rotate-90' : ''}`}
                       >
 
                         <path d="M9 18l6-6-6-6" strokeLinecap="round" strokeLinejoin="round" />
@@ -2183,17 +2400,17 @@ export default function Home() {
 
                           <thead>
 
-                            <tr className="text-left bg-zinc-50">
+                            <tr className="text-left bg-indigo-50/70">
 
-                              <th className="py-2.5 px-5 text-xs font-medium text-zinc-500">Barcode</th>
-                              <th className="py-2.5 px-5 text-xs font-medium text-zinc-500">Shade</th>
-                              <th className="py-2.5 px-5 text-xs font-medium text-zinc-500">Weight</th>
-                              <th className="py-2.5 px-5 text-xs font-medium text-zinc-500 text-right">Cost</th>
-                              <th className="py-2.5 px-5 text-xs font-medium text-zinc-500 text-right">MRP</th>
-                              <th className="py-2.5 px-5 text-xs font-medium text-zinc-500 text-right">Stock</th>
-                              <th className="py-2.5 px-5 text-xs font-medium text-zinc-500 text-right">Value</th>
+                              <th className="py-2.5 px-5 text-xs font-semibold text-indigo-900/70 uppercase tracking-wide">Barcode</th>
+                              <th className="py-2.5 px-5 text-xs font-semibold text-indigo-900/70 uppercase tracking-wide">Shade</th>
+                              <th className="py-2.5 px-5 text-xs font-semibold text-indigo-900/70 uppercase tracking-wide">Weight</th>
+                              <th className="py-2.5 px-5 text-xs font-semibold text-indigo-900/70 uppercase tracking-wide text-right">Cost</th>
+                              <th className="py-2.5 px-5 text-xs font-semibold text-indigo-900/70 uppercase tracking-wide text-right">MRP</th>
+                              <th className="py-2.5 px-5 text-xs font-semibold text-indigo-900/70 uppercase tracking-wide text-right">Stock</th>
+                              <th className="py-2.5 px-5 text-xs font-semibold text-indigo-900/70 uppercase tracking-wide text-right">Value</th>
                               {!isViewer && (
-                                <th className="py-2.5 px-5 text-xs font-medium text-zinc-500 text-right">Actions</th>
+                                <th className="py-2.5 px-5 text-xs font-semibold text-indigo-900/70 uppercase tracking-wide text-right">Actions</th>
                               )}
 
                             </tr>
@@ -2217,22 +2434,26 @@ export default function Home() {
                                   <td className="py-2.5 px-5 text-sm text-zinc-600">{product.shade || '—'}</td>
                                   <td className="py-2.5 px-5 text-sm text-zinc-600">{product.weight || '—'}</td>
                                   <td className="py-2.5 px-5 text-sm text-zinc-600 text-right tabular-nums">Rs. {product.cost_price}</td>
-                                  <td className="py-2.5 px-5 text-sm text-zinc-600 text-right tabular-nums">{product.mrp ? `Rs. ${product.mrp}` : '—'}</td>
+                                  <td className="py-2.5 px-5 text-sm text-zinc-600 text-right tabular-nums">{displayMrp(product.mrp) !== null ? `Rs. ${displayMrp(product.mrp)}` : '—'}</td>
 
-                                  <td
-                                    className={`py-2.5 px-5 font-semibold text-right tabular-nums ${isOutOfStock
-                                      ? 'text-red-600'
-                                      : isLowStock
-                                        ? 'text-amber-600'
-                                        : 'text-zinc-900'
-                                      }`}
-                                  >
+                                  <td className="py-2.5 px-5 text-right tabular-nums">
 
-                                    {product.current_stock}
+                                    <span
+                                      className={`inline-flex items-center justify-center min-w-[2.5rem] px-2.5 py-1 rounded-full text-xs font-bold ${isOutOfStock
+                                        ? 'bg-red-100 text-red-700'
+                                        : isLowStock
+                                          ? 'bg-amber-100 text-amber-700'
+                                          : 'bg-emerald-100 text-emerald-700'
+                                        }`}
+                                    >
+
+                                      {product.current_stock}
+
+                                    </span>
 
                                   </td>
 
-                                  <td className="py-2.5 px-5 font-semibold text-zinc-900 text-right tabular-nums">
+                                  <td className="py-2.5 px-5 font-bold text-emerald-700 text-right tabular-nums">
 
                                     Rs. {(Number(product.cost_price || 0) * Number(product.current_stock || 0)).toLocaleString('en-IN')}
 
@@ -2427,174 +2648,236 @@ export default function Home() {
 
           <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
 
-            <div className="bg-white rounded-[32px] p-8 shadow-2xl border border-zinc-200 w-full max-w-lg">
+            <div className="bg-white rounded-[32px] shadow-2xl border border-zinc-200 w-full max-w-lg max-h-[90vh] flex flex-col">
 
-              <h2 className="text-3xl font-bold mb-6">
+              <h2 className="text-2xl sm:text-3xl font-bold px-6 sm:px-8 pt-6 sm:pt-8 pb-4 flex-shrink-0">
 
                 Edit Product
 
               </h2>
 
-              <div className="space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 px-6 sm:px-8 overflow-y-auto">
 
-                <input
-                  type="text"
-                  value={editBarcode}
-                  onChange={(e) =>
-                    setEditBarcode(
-                      e.target.value
-                    )
-                  }
-                  placeholder="Barcode"
-                  className="w-full border-2 rounded-2xl px-4 py-4"
-                />
+                <div className="sm:col-span-2">
 
-                <input
-                  type="text"
-                  value={editName}
-                  onChange={(e) =>
-                    setEditName(
-                      e.target.value
-                    )
-                  }
-                  placeholder="Product"
-                  className="w-full border-2 rounded-2xl px-4 py-4"
-                />
+                  <label className="text-xs font-medium text-zinc-500 mb-1.5 block">Barcode</label>
 
-                <input
-                  type="text"
-                  value={editCategory}
-                  onChange={(e) =>
-                    setEditCategory(
-                      e.target.value
-                    )
-                  }
-                  placeholder="Category"
-                  className="w-full border-2 rounded-2xl px-4 py-4"
-                />
-
-                <input
-                  type="text"
-                  value={editBrand}
-                  onChange={(e) =>
-                    setEditBrand(
-                      e.target.value
-                    )
-                  }
-                  placeholder="Brand"
-                  className="w-full border-2 rounded-2xl px-4 py-4"
-                />
-
-                <input
-                  type="text"
-                  value={editShade}
-                  onChange={(e) =>
-                    setEditShade(
-                      e.target.value
-                    )
-                  }
-                  placeholder="Shade"
-                  className="w-full border-2 rounded-2xl px-4 py-4"
-                />
-
-                <input
-                  type="text"
-                  value={editWeight}
-                  onChange={(e) =>
-                    setEditWeight(
-                      e.target.value
-                    )
-                  }
-                  placeholder="Weight"
-                  className="w-full border-2 rounded-2xl px-4 py-4"
-                />
-
-                <input
-                  type="number"
-                  value={editCost}
-                  onChange={(e) =>
-                    setEditCost(
-                      e.target.value
-                    )
-                  }
-                  placeholder="Cost"
-                  className="w-full border-2 rounded-2xl px-4 py-4"
-                />
-
-                <input
-                  type="number"
-                  value={editMrp}
-                  onChange={(e) =>
-                    setEditMrp(
-                      e.target.value
-                    )
-                  }
-                  placeholder="MRP"
-                  className="w-full border-2 rounded-2xl px-4 py-4"
-                />
-
-                <input
-                  type="number"
-                  value={editStock}
-                  onChange={(e) =>
-                    setEditStock(
-                      e.target.value
-                    )
-                  }
-                  placeholder="Stock"
-                  className="w-full border-2 rounded-2xl px-4 py-4"
-                />
-
-                {editImage && (
-
-                  <img
-                    src={editImage}
-                    alt=""
-                    className="w-32 h-32 rounded-2xl object-cover border"
+                  <input
+                    type="text"
+                    value={editBarcode}
+                    onChange={(e) =>
+                      setEditBarcode(
+                        e.target.value
+                      )
+                    }
+                    placeholder="Barcode"
+                    className="w-full border-2 rounded-2xl px-4 py-4"
                   />
 
-                )}
+                </div>
 
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={async (e) => {
+                <div className="sm:col-span-2">
 
-                    const file =
-                      e.target.files?.[0]
+                  <label className="text-xs font-medium text-zinc-500 mb-1.5 block">Product Name</label>
 
-                    if (file) {
+                  <input
+                    type="text"
+                    value={editName}
+                    onChange={(e) =>
+                      setEditName(
+                        e.target.value
+                      )
+                    }
+                    placeholder="Product"
+                    className="w-full border-2 rounded-2xl px-4 py-4"
+                  />
 
-                      const fileName =
-                        `${Date.now()}-${file.name}`
+                </div>
 
-                      await supabase.storage
-                        .from('products')
-                        .upload(
-                          fileName,
-                          file
-                        )
+                <div>
 
-                      const { data } =
-                        supabase.storage
+                  <label className="text-xs font-medium text-zinc-500 mb-1.5 block">Category</label>
+
+                  <input
+                    type="text"
+                    list="categories"
+                    value={editCategory}
+                    onChange={(e) =>
+                      setEditCategory(
+                        e.target.value
+                      )
+                    }
+                    placeholder="Category"
+                    className="w-full border-2 rounded-2xl px-4 py-4"
+                  />
+
+                </div>
+
+                <div>
+
+                  <label className="text-xs font-medium text-zinc-500 mb-1.5 block">Brand</label>
+
+                  <input
+                    type="text"
+                    list="brands"
+                    value={editBrand}
+                    onChange={(e) =>
+                      setEditBrand(
+                        e.target.value
+                      )
+                    }
+                    placeholder="Brand"
+                    className="w-full border-2 rounded-2xl px-4 py-4"
+                  />
+
+                </div>
+
+                <div>
+
+                  <label className="text-xs font-medium text-zinc-500 mb-1.5 block">Shade</label>
+
+                  <input
+                    type="text"
+                    value={editShade}
+                    onChange={(e) =>
+                      setEditShade(
+                        e.target.value
+                      )
+                    }
+                    placeholder="Shade"
+                    className="w-full border-2 rounded-2xl px-4 py-4"
+                  />
+
+                </div>
+
+                <div>
+
+                  <label className="text-xs font-medium text-zinc-500 mb-1.5 block">Weight</label>
+
+                  <input
+                    type="text"
+                    value={editWeight}
+                    onChange={(e) =>
+                      setEditWeight(
+                        e.target.value
+                      )
+                    }
+                    placeholder="Weight"
+                    className="w-full border-2 rounded-2xl px-4 py-4"
+                  />
+
+                </div>
+
+                <div>
+
+                  <label className="text-xs font-medium text-zinc-500 mb-1.5 block">Cost</label>
+
+                  <input
+                    type="number"
+                    value={editCost}
+                    onChange={(e) =>
+                      setEditCost(
+                        e.target.value
+                      )
+                    }
+                    placeholder="Cost"
+                    className="w-full border-2 rounded-2xl px-4 py-4"
+                  />
+
+                </div>
+
+                <div>
+
+                  <label className="text-xs font-medium text-zinc-500 mb-1.5 block">MRP</label>
+
+                  <input
+                    type="number"
+                    value={editMrp}
+                    onChange={(e) =>
+                      setEditMrp(
+                        e.target.value
+                      )
+                    }
+                    placeholder="MRP"
+                    className="w-full border-2 rounded-2xl px-4 py-4"
+                  />
+
+                </div>
+
+                <div>
+
+                  <label className="text-xs font-medium text-zinc-500 mb-1.5 block">Stock</label>
+
+                  <input
+                    type="number"
+                    value={editStock}
+                    onChange={(e) =>
+                      setEditStock(
+                        e.target.value
+                      )
+                    }
+                    placeholder="Stock"
+                    className="w-full border-2 rounded-2xl px-4 py-4"
+                  />
+
+                </div>
+
+                <div className="sm:col-span-2 pb-6 sm:pb-8">
+
+                  <label className="text-xs font-medium text-zinc-500 mb-1.5 block">Image</label>
+
+                  {editImage && (
+
+                    <img
+                      src={editImage}
+                      alt=""
+                      className="w-32 h-32 rounded-2xl object-cover border mb-3"
+                    />
+
+                  )}
+
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={async (e) => {
+
+                      const file =
+                        e.target.files?.[0]
+
+                      if (file) {
+
+                        const fileName =
+                          `${Date.now()}-${file.name}`
+
+                        await supabase.storage
                           .from('products')
-                          .getPublicUrl(
-                            fileName
+                          .upload(
+                            fileName,
+                            file
                           )
 
-                      setEditImage(
-                        data.publicUrl
-                      )
+                        const { data } =
+                          supabase.storage
+                            .from('products')
+                            .getPublicUrl(
+                              fileName
+                            )
 
-                    }
+                        setEditImage(
+                          data.publicUrl
+                        )
 
-                  }}
-                  className="w-full border-2 rounded-2xl px-4 py-4"
-                />
+                      }
+
+                    }}
+                    className="w-full border-2 rounded-2xl px-4 py-4"
+                  />
+
+                </div>
 
               </div>
 
-              <div className="flex gap-4 mt-6">
+              <div className="flex gap-4 px-6 sm:px-8 py-5 border-t border-zinc-200 flex-shrink-0">
 
                 <button
                   onClick={

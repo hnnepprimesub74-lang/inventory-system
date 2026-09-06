@@ -143,81 +143,88 @@ function Icon({ name }: { name: string }) {
 
 }
 
-const NAV_LINKS = [
-  // Inventory
-  { label: 'Home', href: '/', icon: 'home', isActive: (p: string) => p === '/' },
-  { label: 'Stock Log', href: '/stock-log', icon: 'box', isActive: (p: string) => p === '/stock-log' },
-  { label: 'Low Stock', href: '/low-stock', icon: 'alert', isActive: (p: string) => p === '/low-stock' },
-  { label: 'Most Selling', href: '/most-selling', icon: 'trending', isActive: (p: string) => p === '/most-selling' },
-
-  // Finance
+const NAV_SECTIONS = [
   {
-    label: 'Supplier',
-    href: '/accounting',
-    icon: 'users',
-    isActive: (p: string) =>
-      p === '/accounting' ||
-      (p.startsWith('/accounting/') && !p.startsWith('/accounting/lifetime-purchase')),
+    title: 'Inventory',
+    items: [
+      { label: 'Home', href: '/', icon: 'home', isActive: (p: string) => p === '/' },
+      { label: 'Stock Log', href: '/stock-log', icon: 'box', isActive: (p: string) => p === '/stock-log' },
+      { label: 'Low Stock', href: '/low-stock', icon: 'alert', isActive: (p: string) => p === '/low-stock' },
+      { label: 'Most Selling', href: '/most-selling', icon: 'trending', isActive: (p: string) => p === '/most-selling' },
+    ],
   },
   {
-    label: 'Lifetime Purchase',
-    href: '/accounting/lifetime-purchase',
-    icon: 'chart',
-    isActive: (p: string) => p.startsWith('/accounting/lifetime-purchase'),
-  },
-  {
-    label: 'Staff',
-    href: '/staff',
-    icon: 'badge',
-    isActive: (p: string) => p === '/staff' || p.startsWith('/staff/'),
-  },
-  {
-    label: 'Rent',
-    href: '/rent',
-    icon: 'building',
-    isActive: (p: string) => p === '/rent',
-  },
-  {
-    label: 'Admin Finance',
-    href: '/admin-finance',
-    icon: 'badge',
-    isActive: (p: string) => p === '/admin-finance',
-  },
-  {
-    label: 'Refunds',
-    href: '/refunds',
-    icon: 'refund',
-    isActive: (p: string) => p === '/refunds',
-  },
-  {
-    label: 'Daraz Cash In',
-    href: '/daraz',
-    icon: 'wallet',
-    isActive: (p: string) => p === '/daraz',
-  },
-  {
-    label: 'Operating Expenses',
-    href: '/expenses',
-    icon: 'receipt',
-    isActive: (p: string) => p === '/expenses',
-  },
-  {
-    label: 'Misc Expenses',
-    href: '/misc-expenses',
-    icon: 'grid',
-    isActive: (p: string) => p === '/misc-expenses',
-  },
-  {
-    label: 'Loan',
-    href: '/loan',
-    icon: 'wallet',
-    isActive: (p: string) => p === '/loan',
-  },
-  {
-    label: 'Finance Report',
-    href: '/finance-report',
-    icon: 'report',
-    isActive: (p: string) => p === '/finance-report',
+    title: 'Finance',
+    items: [
+      {
+        label: 'Supplier',
+        href: '/accounting',
+        icon: 'users',
+        isActive: (p: string) =>
+          p === '/accounting' ||
+          (p.startsWith('/accounting/') && !p.startsWith('/accounting/lifetime-purchase')),
+      },
+      {
+        label: 'Lifetime Purchase',
+        href: '/accounting/lifetime-purchase',
+        icon: 'chart',
+        isActive: (p: string) => p.startsWith('/accounting/lifetime-purchase'),
+      },
+      {
+        label: 'Staff',
+        href: '/staff',
+        icon: 'badge',
+        isActive: (p: string) => p === '/staff' || p.startsWith('/staff/'),
+      },
+      {
+        label: 'Rent',
+        href: '/rent',
+        icon: 'building',
+        isActive: (p: string) => p === '/rent',
+      },
+      {
+        label: 'Admin Finance',
+        href: '/admin-finance',
+        icon: 'badge',
+        isActive: (p: string) => p === '/admin-finance',
+      },
+      {
+        label: 'Refunds',
+        href: '/refunds',
+        icon: 'refund',
+        isActive: (p: string) => p === '/refunds',
+      },
+      {
+        label: 'Daraz Cash In',
+        href: '/daraz',
+        icon: 'wallet',
+        isActive: (p: string) => p === '/daraz',
+      },
+      {
+        label: 'Operating Expenses',
+        href: '/expenses',
+        icon: 'receipt',
+        isActive: (p: string) => p === '/expenses',
+      },
+      {
+        label: 'Misc Expenses',
+        href: '/misc-expenses',
+        icon: 'grid',
+        isActive: (p: string) => p === '/misc-expenses',
+      },
+      {
+        label: 'Loan',
+        href: '/loan',
+        icon: 'wallet',
+        isActive: (p: string) => p === '/loan',
+      },
+      {
+        label: 'Finance Report',
+        href: '/finance-report',
+        icon: 'report',
+        isActive: (p: string) => p === '/finance-report',
+      },
+    ],
   },
 ]
 
@@ -242,10 +249,15 @@ export default function Sidebar({
   const router = useRouter()
   const pathname = usePathname()
 
-  const visibleNavLinks =
-    role === 'worker'
-      ? NAV_LINKS.filter((link) => WORKER_ALLOWED_HREFS.includes(link.href))
-      : NAV_LINKS
+  const visibleNavSections = NAV_SECTIONS
+    .map((section) => ({
+      ...section,
+      items:
+        role === 'worker'
+          ? section.items.filter((link) => WORKER_ALLOWED_HREFS.includes(link.href))
+          : section.items,
+    }))
+    .filter((section) => section.items.length > 0)
 
   function go(href: string) {
 
@@ -268,19 +280,19 @@ export default function Sidebar({
       )}
 
       <aside
-        className={`fixed inset-y-0 left-0 z-50 w-72 max-w-[85vw] bg-white shadow-2xl p-5 flex flex-col gap-6 transition-transform duration-300 ease-in-out overflow-y-auto
+        className={`fixed inset-y-0 left-0 z-50 w-72 max-w-[85vw] bg-white shadow-2xl p-5 flex flex-col gap-3 transition-transform duration-300 ease-in-out
         ${mobileOpen ? 'translate-x-0' : '-translate-x-full'}
-        lg:translate-x-0 lg:static lg:z-auto lg:w-64 lg:max-w-none lg:flex-shrink-0 lg:rounded-[28px] lg:shadow-sm lg:border lg:border-zinc-200 lg:sticky lg:top-6 lg:self-start`}
+        lg:translate-x-0 lg:static lg:z-auto lg:w-64 lg:max-w-none lg:flex-shrink-0 lg:rounded-[28px] lg:shadow-sm lg:border lg:border-zinc-200 lg:sticky lg:top-6 lg:self-start lg:max-h-[calc(100vh-3rem)]`}
       >
 
-        <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center justify-between gap-3 flex-shrink-0">
 
           <div
             onClick={() => go('/')}
             className="flex items-center gap-3 cursor-pointer min-w-0"
           >
 
-            <div className="w-10 h-10 rounded-xl bg-indigo-600 text-white flex items-center justify-center flex-shrink-0">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-fuchsia-500 text-white flex items-center justify-center flex-shrink-0 shadow-lg shadow-indigo-200">
 
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="w-5 h-5">
                 <ellipse cx="12" cy="5" rx="8" ry="3" />
@@ -314,41 +326,59 @@ export default function Sidebar({
 
         </div>
 
-        <nav className="flex flex-col gap-1">
+        <nav className="flex flex-col gap-4 flex-1 min-h-0 overflow-y-auto pr-1 -mr-1">
 
-          {visibleNavLinks.map((link) => {
+          {visibleNavSections.map((section) => (
 
-            const active = link.isActive(pathname)
+            <div key={section.title} className="flex flex-col gap-1">
 
-            return (
+              <p className="px-4 text-[10px] font-bold text-zinc-400 uppercase tracking-wider mb-0.5">
+                {section.title}
+              </p>
 
-              <button
-                key={link.href}
-                onClick={() => go(link.href)}
-                className={
-                active
-                  ? 'flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-semibold bg-indigo-50 text-indigo-700'
-                  : 'flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-medium text-zinc-500 hover:bg-zinc-50 hover:text-zinc-800 transition-colors'
-              }
-            >
+              {section.items.map((link) => {
 
-              <span className={active ? 'text-indigo-600' : 'text-zinc-400'}>
-                <Icon name={link.icon} />
-              </span>
+                const active = link.isActive(pathname)
 
-              {link.label}
+                return (
 
-            </button>
+                  <button
+                    key={link.href}
+                    onClick={() => go(link.href)}
+                    className={
+                      active
+                        ? 'relative flex items-center gap-3 pl-4 pr-3 py-2.5 rounded-xl text-sm font-semibold bg-gradient-to-r from-indigo-50 to-fuchsia-50 text-indigo-700'
+                        : 'flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-medium text-zinc-500 hover:bg-zinc-50 hover:text-zinc-800 transition-colors'
+                    }
+                  >
 
-          )
+                    {active && (
+                      <span className="absolute left-0 top-1.5 bottom-1.5 w-1 rounded-full bg-gradient-to-b from-indigo-500 to-fuchsia-500" />
+                    )}
 
-        })}
+                    <span className={active ? 'text-indigo-600' : 'text-zinc-400'}>
+                      <Icon name={link.icon} />
+                    </span>
 
-      </nav>
+                    {link.label}
 
-      <div className="mt-auto space-y-3">
+                  </button>
 
-        <div className="bg-green-50 border border-green-100 rounded-2xl px-4 py-3">
+                )
+
+              })}
+
+            </div>
+
+          ))}
+
+        </nav>
+
+      <div className="flex-shrink-0 space-y-3">
+
+        <div className="relative overflow-hidden bg-gradient-to-br from-emerald-50 to-green-50 border border-green-100 rounded-2xl px-4 py-3">
+
+          <div className="absolute top-0 left-0 bottom-0 w-1 bg-gradient-to-b from-emerald-500 to-green-600" />
 
           <p className="text-xs text-zinc-500">Total Inventory Cost</p>
           <p className="text-lg font-bold tabular-nums text-green-600 mt-0.5">
@@ -359,7 +389,7 @@ export default function Sidebar({
 
         <div className="flex items-center gap-2 px-1">
 
-          <div className="w-8 h-8 rounded-full bg-zinc-900 text-white flex items-center justify-center text-xs font-bold uppercase flex-shrink-0">
+          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-indigo-500 to-fuchsia-500 text-white flex items-center justify-center text-xs font-bold uppercase flex-shrink-0">
 
             {userEmail.charAt(0) || '?'}
 

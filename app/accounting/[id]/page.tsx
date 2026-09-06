@@ -198,12 +198,36 @@ export default function SupplierLedgerPage() {
 
   }
 
+  const stockLotMap: Record<string, { date: string; debit: number }> = {}
+  const stockLotOrder: string[] = []
+
   stockTxns.forEach((t) => {
 
+    const key = t.lot_id || `single-${t.id}`
+
+    if (!stockLotMap[key]) {
+
+      stockLotMap[key] = {
+        date: t.stock_date || (t.created_at ? t.created_at.slice(0, 10) : ''),
+        debit: 0,
+      }
+
+      stockLotOrder.push(key)
+
+    }
+
+    stockLotMap[key].debit += txnAmount(t)
+
+  })
+
+  stockLotOrder.forEach((key) => {
+
+    const lot = stockLotMap[key]
+
     ledgerEntries.push({
-      date: t.stock_date || (t.created_at ? t.created_at.slice(0, 10) : ''),
+      date: lot.date,
       description: 'Stock Purchase (from Stock Log)',
-      debit: txnAmount(t),
+      debit: lot.debit,
       credit: 0,
       source: '',
     })
