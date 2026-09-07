@@ -3,7 +3,6 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '../../lib/supabase'
-import { displayMrp } from '../../lib/mrp'
 import * as XLSX from 'xlsx'
 import { saveAs } from 'file-saver'
 
@@ -75,7 +74,7 @@ export default function MostSellingPage() {
 
   const sellingProducts = products.filter((p) => p.sold > 0)
   const totalUnitsSold = sellingProducts.reduce((s, p) => s + p.sold, 0)
-  const totalRevenue = sellingProducts.reduce((s, p) => s + p.sold * (displayMrp(p.mrp) || 0), 0)
+  const topSeller = sellingProducts[0]
 
   function exportToExcel() {
 
@@ -92,8 +91,8 @@ export default function MostSellingPage() {
       Category: p.category,
       Brand: p.brand,
       Shade: p.shade,
+      Weight: p.weight,
       'Sold (30d)': p.sold,
-      MRP: displayMrp(p.mrp) ?? '',
       'Current Stock': p.current_stock,
     }))
 
@@ -109,6 +108,25 @@ export default function MostSellingPage() {
     })
 
     saveAs(blob, 'most-selling.xlsx')
+
+  }
+
+  function rankBadgeClasses(rank: number) {
+
+    if (rank === 1) return 'bg-amber-100 text-amber-700 border border-amber-200'
+    if (rank === 2) return 'bg-zinc-200 text-zinc-700 border border-zinc-300'
+    if (rank === 3) return 'bg-orange-100 text-orange-700 border border-orange-200'
+
+    return 'bg-zinc-100 text-zinc-500 border border-zinc-200'
+
+  }
+
+  function stockBadgeClasses(stock: number) {
+
+    if (stock <= 0) return 'bg-red-100 text-red-700'
+    if (stock <= 5) return 'bg-amber-100 text-amber-700'
+
+    return 'bg-emerald-100 text-emerald-700'
 
   }
 
@@ -138,7 +156,7 @@ export default function MostSellingPage() {
 
           <button
             onClick={exportToExcel}
-            className="bg-green-600 text-white px-5 py-3 rounded-2xl font-bold"
+            className="bg-green-600 hover:bg-green-700 transition-colors text-white px-5 py-3 rounded-2xl font-bold shadow-sm"
           >
 
             Export Excel
@@ -149,17 +167,29 @@ export default function MostSellingPage() {
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
 
-          <div className="bg-white rounded-2xl shadow-sm border border-zinc-200 border-l-4 border-l-indigo-600 px-6 py-4">
+          <div className="relative overflow-hidden bg-gradient-to-br from-indigo-600 to-indigo-700 rounded-2xl shadow-sm px-6 py-5 text-white">
 
-            <p className="text-sm text-zinc-500">Units Sold (30d)</p>
-            <h2 className="text-3xl font-bold tracking-tight mt-1 tabular-nums text-indigo-600">{totalUnitsSold.toLocaleString('en-IN')}</h2>
+            <p className="text-sm text-indigo-100">Units Sold (30d)</p>
+            <h2 className="text-4xl font-bold tracking-tight mt-1 tabular-nums">{totalUnitsSold.toLocaleString('en-IN')}</h2>
 
           </div>
 
-          <div className="bg-white rounded-2xl shadow-sm border border-zinc-200 border-l-4 border-l-green-600 px-6 py-4">
+          <div className="bg-white rounded-2xl shadow-sm border border-zinc-200 px-6 py-5">
 
-            <p className="text-sm text-zinc-500">Revenue at MRP (30d)</p>
-            <h2 className="text-3xl font-bold tracking-tight mt-1 tabular-nums text-green-600">Rs. {totalRevenue.toLocaleString('en-IN')}</h2>
+            <p className="text-sm text-zinc-500">Top Seller</p>
+
+            {topSeller ? (
+
+              <>
+                <h2 className="text-xl font-bold tracking-tight mt-1 text-zinc-900 truncate">{topSeller.product_name}</h2>
+                <p className="text-sm text-zinc-500 mt-0.5">{topSeller.sold} units sold</p>
+              </>
+
+            ) : (
+
+              <h2 className="text-xl font-bold tracking-tight mt-1 text-zinc-400">—</h2>
+
+            )}
 
           </div>
 
@@ -183,15 +213,16 @@ export default function MostSellingPage() {
 
                 <thead>
 
-                  <tr className="text-left">
+                  <tr className="text-left border-b border-zinc-200">
 
-                    <th className="pb-3 pr-4 text-sm font-medium text-zinc-500">#</th>
-                    <th className="pb-3 pr-4 text-sm font-medium text-zinc-500">Product</th>
-                    <th className="pb-3 pr-4 text-sm font-medium text-zinc-500">Category</th>
-                    <th className="pb-3 pr-4 text-sm font-medium text-zinc-500">Brand</th>
-                    <th className="pb-3 pr-4 text-sm font-medium text-zinc-500 text-right">Sold (30d)</th>
-                    <th className="pb-3 pr-4 text-sm font-medium text-zinc-500 text-right">MRP</th>
-                    <th className="pb-3 text-sm font-medium text-zinc-500 text-right">Current Stock</th>
+                    <th className="pb-3 pr-4 text-xs font-semibold uppercase tracking-wide text-zinc-400">#</th>
+                    <th className="pb-3 pr-4 text-xs font-semibold uppercase tracking-wide text-zinc-400">Product</th>
+                    <th className="pb-3 pr-4 text-xs font-semibold uppercase tracking-wide text-zinc-400">Category</th>
+                    <th className="pb-3 pr-4 text-xs font-semibold uppercase tracking-wide text-zinc-400">Brand</th>
+                    <th className="pb-3 pr-4 text-xs font-semibold uppercase tracking-wide text-zinc-400">Shade</th>
+                    <th className="pb-3 pr-4 text-xs font-semibold uppercase tracking-wide text-zinc-400">Weight</th>
+                    <th className="pb-3 pr-4 text-xs font-semibold uppercase tracking-wide text-zinc-400 text-right">Sold (30d)</th>
+                    <th className="pb-3 text-xs font-semibold uppercase tracking-wide text-zinc-400 text-right">Current Stock</th>
 
                   </tr>
 
@@ -201,15 +232,24 @@ export default function MostSellingPage() {
 
                   {sellingProducts.map((p, i) => (
 
-                    <tr key={p.id}>
+                    <tr key={p.id} className="hover:bg-zinc-50 transition-colors">
 
-                      <td className="py-3 pr-4 text-sm text-zinc-400 font-semibold">{i + 1}</td>
+                      <td className="py-3 pr-4">
+                        <span className={`inline-flex items-center justify-center w-7 h-7 rounded-full text-xs font-bold ${rankBadgeClasses(i + 1)}`}>
+                          {i + 1}
+                        </span>
+                      </td>
                       <td className="py-3 pr-4 font-semibold text-zinc-900">{p.product_name}</td>
                       <td className="py-3 pr-4 text-sm text-zinc-600">{p.category}</td>
                       <td className="py-3 pr-4 text-sm text-zinc-600">{p.brand}</td>
+                      <td className="py-3 pr-4 text-sm text-zinc-600">{p.shade || '—'}</td>
+                      <td className="py-3 pr-4 text-sm text-zinc-600">{p.weight || '—'}</td>
                       <td className="py-3 pr-4 text-right tabular-nums font-semibold text-indigo-600">{p.sold}</td>
-                      <td className="py-3 pr-4 text-right tabular-nums text-zinc-600">{displayMrp(p.mrp) !== null ? `Rs. ${displayMrp(p.mrp)}` : '—'}</td>
-                      <td className="py-3 text-right tabular-nums text-zinc-600">{p.current_stock}</td>
+                      <td className="py-3 text-right">
+                        <span className={`inline-block px-2.5 py-1 rounded-lg text-xs font-semibold tabular-nums ${stockBadgeClasses(p.current_stock)}`}>
+                          {p.current_stock}
+                        </span>
+                      </td>
 
                     </tr>
 
