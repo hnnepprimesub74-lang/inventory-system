@@ -1710,79 +1710,13 @@ export default function Home() {
 
                   if (!product) return
 
-                  if (mode === 'SELL') {
+                  if (mode === 'SELL' || mode === 'RETURN') {
 
-                    if (
-                      product.current_stock <= 0
-                    ) {
-
-                      alert(
-                        'Out of stock'
-                      )
-
-                      return
-
-                    }
-
-                    await supabase
-                      .from('products')
-                      .update({
-
-                        current_stock:
-                          product.current_stock - 1,
-
-                      })
-                      .eq(
-                        'id',
-                        product.id
-                      )
-
-                    await supabase
-                      .from('stock_transactions')
-                      .insert([
-                        {
-                          product_id: product.id,
-                          user_email: userEmail,
-                          transaction_type: 'SELL',
-                          quantity: 1,
-                        },
-                      ])
-
-                    fetchProducts()
-
-                    setMessage(
-                      `${product.product_name} sold`
-                    )
-
-                    setTimeout(() => {
-                      setMessage('')
-                    }, 1000)
-
-                    setScanBarcode('')
-
-                    return
-
-                  }
-
-                  if (mode === 'RETURN') {
-
-                    await supabase
-                      .from('products')
-                      .update({
-
-                        current_stock:
-                          product.current_stock + 1,
-
-                      })
-                      .eq(
-                        'id',
-                        product.id
-                      )
-
-                    fetchProducts()
-
-                    setScanBarcode('')
-
+                    // Sale/return is processed once, on Enter, by
+                    // handleBarcodeScan — see onKeyDown below. Handling it
+                    // here too caused a race with the Enter keypress that
+                    // scanners send right after the barcode, doubling the
+                    // recorded quantity.
                     return
 
                   }
