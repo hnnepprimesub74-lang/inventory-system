@@ -141,6 +141,35 @@ export default function Home() {
     setSessionLotId] =
     useState('')
 
+  const [sessionSuccessInfo,
+    setSessionSuccessInfo] =
+    useState<{ count: number } | null>(null)
+
+  // ---- Add Old Stock (no session — each scan saves instantly, no log entry) ----
+  const [oldStockModeActive,
+    setOldStockModeActive] =
+    useState(false)
+
+  const [oldStockModalProduct,
+    setOldStockModalProduct] =
+    useState<any>(null)
+
+  const [oldStockQty,
+    setOldStockQty] =
+    useState('')
+
+  const [oldStockCost,
+    setOldStockCost] =
+    useState('')
+
+  const [oldStockAddedCount,
+    setOldStockAddedCount] =
+    useState(0)
+
+  const [savingOldStock,
+    setSavingOldStock] =
+    useState(false)
+
   const [sessionItems,
     setSessionItems] =
     useState<any[]>([])
@@ -473,6 +502,80 @@ export default function Home() {
 
   }
 
+  function startOldStockMode() {
+
+    setOldStockAddedCount(0)
+
+    setOldStockModeActive(true)
+
+    setShowSessionStartForm(false)
+
+  }
+
+  function stopOldStockMode() {
+
+    setOldStockModeActive(false)
+
+    setOldStockModalProduct(null)
+
+    setOldStockQty('')
+
+    setOldStockCost('')
+
+    setOldStockAddedCount(0)
+
+    setSessionNewProduct(null)
+
+  }
+
+  async function saveOldStockQuickAdd() {
+
+    if (!oldStockModalProduct) return
+
+    const qty = Number(oldStockQty)
+
+    if (!qty || qty <= 0) {
+
+      alert('Enter a quantity greater than 0')
+
+      return
+
+    }
+
+    setSavingOldStock(true)
+
+    const newStock =
+      Number(oldStockModalProduct.current_stock || 0) + qty
+
+    await supabase
+      .from('products')
+      .update({
+
+        current_stock: newStock,
+
+        cost_price: Number(oldStockCost) || 0,
+
+      })
+      .eq('id', oldStockModalProduct.id)
+
+    await fetchProducts()
+
+    setSavingOldStock(false)
+
+    setOldStockAddedCount((c) => c + 1)
+
+    setOldStockModalProduct(null)
+
+    setOldStockQty('')
+
+    setOldStockCost('')
+
+    setScanBarcode('')
+
+    scanInputRef.current?.focus()
+
+  }
+
   function updateSessionItemQty(index: number, qty: string) {
 
     setSessionItems((prev) => {
@@ -561,6 +664,32 @@ export default function Home() {
     if (error || !inserted) {
 
       alert(error?.message || 'Failed to add product')
+
+      return
+
+    }
+
+    if (oldStockModeActive) {
+
+      // Old stock: no session list — set the stock directly and we're done.
+      await supabase
+        .from('products')
+        .update({
+
+          current_stock: Number(sessionNewProduct.qty) || 1,
+
+        })
+        .eq('id', inserted.id)
+
+      setOldStockAddedCount((c) => c + 1)
+
+      setSessionNewProduct(null)
+
+      await fetchProducts()
+
+      setScanBarcode('')
+
+      scanInputRef.current?.focus()
 
       return
 
@@ -678,9 +807,9 @@ export default function Home() {
 
       await fetchStockInHistory()
 
-      alert(
-        `Stock lot saved: ${sessionItems.length} product(s) updated`
-      )
+      setSessionSuccessInfo({
+        count: sessionItems.length,
+      })
 
       cancelSession()
 
@@ -1089,6 +1218,7 @@ export default function Home() {
         category: p.category,
         brand: p.brand,
         image: p.image_url,
+        createdAt: p.created_at || '',
         variants: [],
       }
 
@@ -1096,6 +1226,10 @@ export default function Home() {
 
     if (!productGroupsMap[key].image && p.image_url) {
       productGroupsMap[key].image = p.image_url
+    }
+
+    if ((p.created_at || '') > productGroupsMap[key].createdAt) {
+      productGroupsMap[key].createdAt = p.created_at || ''
     }
 
     productGroupsMap[key].variants.push(p)
@@ -1118,7 +1252,7 @@ export default function Home() {
       return { ...g, totalStock, totalValue }
 
     })
-    .sort((a: any, b: any) => (a.productName || '').localeCompare(b.productName || ''))
+    .sort((a: any, b: any) => (b.createdAt || '').localeCompare(a.createdAt || ''))
 
   const totalStockValue =
     products.reduce(
@@ -1155,7 +1289,7 @@ export default function Home() {
   ).size
 
   const showScanUI =
-    mode !== 'ADD' || stockSessionActive
+    mode !== 'ADD' || stockSessionActive || oldStockModeActive
 
   return (
 
@@ -1360,22 +1494,45 @@ export default function Home() {
 
           {/* ADD STOCK: session start gate */}
 
-          {mode === 'ADD' && !stockSessionActive && (
+          {mode === 'ADD' && !stockSessionActive && !oldStockModeActive && (
 
             <div className="mb-6">
 
               {!showSessionStartForm ? (
 
-                <button
-                  onClick={() =>
-                    setShowSessionStartForm(true)
-                  }
-                  className="w-full bg-green-600 hover:bg-green-700 transition-colors text-white font-bold text-lg py-5 rounded-2xl"
-                >
+                <>
 
-                  Start Adding Stock
+                  <button
+                    onClick={() =>
+                      setShowSessionStartForm(true)
+                    }
+                    className="w-full bg-green-600 hover:bg-green-700 transition-colors text-white font-bold text-lg py-5 rounded-2xl"
+                  >
 
-                </button>
+                    Start Adding Stock
+
+                  </button>
+
+                  <div className="flex items-center justify-center mt-3">
+
+                    <button
+                      onClick={startOldStockMode}
+                      className="bg-white border border-zinc-300 hover:bg-zinc-50 transition-colors text-zinc-600 font-semibold text-xs px-4 py-2 rounded-full"
+                    >
+
+                      Add Old Stock
+
+                    </button>
+
+                  </div>
+
+                  <p className="text-xs text-zinc-400 mt-2 px-1 text-center">
+
+                    Skips seller/date — scan a barcode and enter its quantity to add it instantly. Won't appear in Stock Log or Lifetime Purchase.
+
+                  </p>
+
+                </>
 
               ) : (
 
@@ -1529,6 +1686,18 @@ export default function Home() {
 
                     if (!product) return
 
+                    if (oldStockModeActive) {
+
+                      setOldStockModalProduct(product)
+
+                      setOldStockQty('')
+
+                      setOldStockCost(String(product.cost_price ?? ''))
+
+                      return
+
+                    }
+
                     if (!stockSessionActive) return
 
                     addOrIncrementSessionItem(product)
@@ -1628,7 +1797,7 @@ export default function Home() {
 
                   if (mode === 'ADD') {
 
-                    if (!stockSessionActive) return
+                    if (!stockSessionActive && !oldStockModeActive) return
 
                     const product =
                       products.find(
@@ -1638,6 +1807,18 @@ export default function Home() {
                       )
 
                     if (product) {
+
+                      if (oldStockModeActive) {
+
+                        setOldStockModalProduct(product)
+
+                        setOldStockQty('')
+
+                        setOldStockCost(String(product.cost_price ?? ''))
+
+                        return
+
+                      }
 
                       addOrIncrementSessionItem(product)
 
@@ -1676,7 +1857,7 @@ export default function Home() {
 
               {
                 mode === 'ADD' &&
-                stockSessionActive &&
+                (stockSessionActive || oldStockModeActive) &&
                 scanBarcode &&
                 !products.find(
                   p => p.barcode === scanBarcode
@@ -1702,13 +1883,240 @@ export default function Home() {
                     }}
                     className="mt-3 w-full bg-amber-500 hover:bg-amber-600 transition-colors text-white font-semibold py-4 rounded-2xl"
                   >
-                    Add New Product to Lot
+                    {oldStockModeActive ? 'Add as New Product' : 'Add New Product to Lot'}
                   </button>
 
                 )
               }
 
             </>
+
+          )}
+
+          {mode === 'ADD' && sessionNewProduct && (
+
+            <div className="border rounded-2xl p-4 bg-amber-50 space-y-3 mt-6">
+
+              <p className="font-semibold text-zinc-900">
+
+                New product scanned: {sessionNewProduct.barcode}
+
+              </p>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+
+                <div className="sm:col-span-2">
+
+                  <label className="text-xs font-medium text-zinc-500 mb-1 block">Product Name</label>
+
+                  <input
+                    list="productNames"
+                    placeholder="Product Name"
+                    value={sessionNewProduct.name}
+                    onChange={(e) => {
+
+                      const name = e.target.value
+
+                      const match = products.find(
+                        (p) =>
+                          p.product_name &&
+                          p.product_name.toLowerCase() === name.toLowerCase()
+                      )
+
+                      if (match) {
+
+                        setSessionNewProduct({
+                          ...sessionNewProduct,
+                          name,
+                          category: match.category || '',
+                          brand: match.brand || '',
+                          weight: match.weight || '',
+                          mrp: match.mrp != null ? String(match.mrp) : '',
+                          costPrice:
+                            match.cost_price != null
+                              ? String(match.cost_price)
+                              : sessionNewProduct.costPrice,
+                        })
+
+                      } else {
+
+                        setSessionNewProduct({
+                          ...sessionNewProduct,
+                          name,
+                        })
+
+                      }
+
+                    }}
+                    className="w-full border-2 rounded-xl px-3 py-2.5 bg-white"
+                  />
+
+                  <p className="text-xs text-zinc-400 mt-1">
+
+                    Pick an existing name to auto-fill Category, Brand, Weight, MRP &amp; Cost — you'll just need to add the Shade.
+
+                  </p>
+
+                </div>
+
+                <div>
+
+                  <label className="text-xs font-medium text-zinc-500 mb-1 block">Category</label>
+
+                  <input
+                    list="categories"
+                    placeholder="Category"
+                    value={sessionNewProduct.category}
+                    onChange={(e) =>
+                      setSessionNewProduct({
+                        ...sessionNewProduct,
+                        category: e.target.value,
+                      })
+                    }
+                    className="w-full border-2 rounded-xl px-3 py-2.5 bg-white"
+                  />
+
+                </div>
+
+                <div>
+
+                  <label className="text-xs font-medium text-zinc-500 mb-1 block">Brand</label>
+
+                  <input
+                    list="brands"
+                    placeholder="Brand"
+                    value={sessionNewProduct.brand}
+                    onChange={(e) =>
+                      setSessionNewProduct({
+                        ...sessionNewProduct,
+                        brand: e.target.value,
+                      })
+                    }
+                    className="w-full border-2 rounded-xl px-3 py-2.5 bg-white"
+                  />
+
+                </div>
+
+                <div>
+
+                  <label className="text-xs font-medium text-zinc-500 mb-1 block">Shade</label>
+
+                  <input
+                    placeholder="Shade"
+                    value={sessionNewProduct.shade}
+                    onChange={(e) =>
+                      setSessionNewProduct({
+                        ...sessionNewProduct,
+                        shade: e.target.value,
+                      })
+                    }
+                    className="w-full border-2 rounded-xl px-3 py-2.5 bg-white"
+                  />
+
+                </div>
+
+                <div>
+
+                  <label className="text-xs font-medium text-zinc-500 mb-1 block">Weight</label>
+
+                  <input
+                    placeholder="Weight"
+                    value={sessionNewProduct.weight}
+                    onChange={(e) =>
+                      setSessionNewProduct({
+                        ...sessionNewProduct,
+                        weight: e.target.value,
+                      })
+                    }
+                    className="w-full border-2 rounded-xl px-3 py-2.5 bg-white"
+                  />
+
+                </div>
+
+                <div>
+
+                  <label className="text-xs font-medium text-zinc-500 mb-1 block">MRP</label>
+
+                  <input
+                    type="number"
+                    placeholder="MRP"
+                    value={sessionNewProduct.mrp}
+                    onChange={(e) =>
+                      setSessionNewProduct({
+                        ...sessionNewProduct,
+                        mrp: e.target.value,
+                      })
+                    }
+                    className="w-full border-2 rounded-xl px-3 py-2.5 bg-white"
+                  />
+
+                </div>
+
+                <div>
+
+                  <label className="text-xs font-medium text-zinc-500 mb-1 block">Cost Price</label>
+
+                  <input
+                    type="number"
+                    placeholder="Cost Price"
+                    value={sessionNewProduct.costPrice}
+                    onChange={(e) =>
+                      setSessionNewProduct({
+                        ...sessionNewProduct,
+                        costPrice: e.target.value,
+                      })
+                    }
+                    className="w-full border-2 rounded-xl px-3 py-2.5 bg-white"
+                  />
+
+                </div>
+
+                <div>
+
+                  <label className="text-xs font-medium text-zinc-500 mb-1 block">Quantity</label>
+
+                  <input
+                    type="number"
+                    placeholder="Quantity"
+                    value={sessionNewProduct.qty}
+                    onChange={(e) =>
+                      setSessionNewProduct({
+                        ...sessionNewProduct,
+                        qty: e.target.value,
+                      })
+                    }
+                    className="w-full border-2 rounded-xl px-3 py-2.5 bg-white"
+                  />
+
+                </div>
+
+              </div>
+
+              <div className="flex gap-3">
+
+                <button
+                  onClick={confirmSessionNewProduct}
+                  className="flex-1 bg-amber-500 hover:bg-amber-600 transition-colors text-white py-3 rounded-xl font-bold"
+                >
+
+                  {oldStockModeActive ? 'Add Product' : 'Add to Lot'}
+
+                </button>
+
+                <button
+                  onClick={() =>
+                    setSessionNewProduct(null)
+                  }
+                  className="flex-1 bg-gray-200 hover:bg-gray-300 transition-colors py-3 rounded-xl font-bold"
+                >
+
+                  Skip
+
+                </button>
+
+              </div>
+
+            </div>
 
           )}
 
@@ -1762,233 +2170,6 @@ export default function Home() {
                 </div>
 
               </div>
-
-              {sessionNewProduct && (
-
-                <div className="border rounded-2xl p-4 bg-amber-50 space-y-3">
-
-                  <p className="font-semibold text-zinc-900">
-
-                    New product scanned: {sessionNewProduct.barcode}
-
-                  </p>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-
-                    <div className="sm:col-span-2">
-
-                      <label className="text-xs font-medium text-zinc-500 mb-1 block">Product Name</label>
-
-                      <input
-                        list="productNames"
-                        placeholder="Product Name"
-                        value={sessionNewProduct.name}
-                        onChange={(e) => {
-
-                          const name = e.target.value
-
-                          const match = products.find(
-                            (p) =>
-                              p.product_name &&
-                              p.product_name.toLowerCase() === name.toLowerCase()
-                          )
-
-                          if (match) {
-
-                            setSessionNewProduct({
-                              ...sessionNewProduct,
-                              name,
-                              category: match.category || '',
-                              brand: match.brand || '',
-                              weight: match.weight || '',
-                              mrp: match.mrp != null ? String(match.mrp) : '',
-                              costPrice:
-                                match.cost_price != null
-                                  ? String(match.cost_price)
-                                  : sessionNewProduct.costPrice,
-                            })
-
-                          } else {
-
-                            setSessionNewProduct({
-                              ...sessionNewProduct,
-                              name,
-                            })
-
-                          }
-
-                        }}
-                        className="w-full border-2 rounded-xl px-3 py-2.5 bg-white"
-                      />
-
-                      <p className="text-xs text-zinc-400 mt-1">
-
-                        Pick an existing name to auto-fill Category, Brand, Weight, MRP &amp; Cost — you'll just need to add the Shade.
-
-                      </p>
-
-                    </div>
-
-                    <div>
-
-                      <label className="text-xs font-medium text-zinc-500 mb-1 block">Category</label>
-
-                      <input
-                        list="categories"
-                        placeholder="Category"
-                        value={sessionNewProduct.category}
-                        onChange={(e) =>
-                          setSessionNewProduct({
-                            ...sessionNewProduct,
-                            category: e.target.value,
-                          })
-                        }
-                        className="w-full border-2 rounded-xl px-3 py-2.5 bg-white"
-                      />
-
-                    </div>
-
-                    <div>
-
-                      <label className="text-xs font-medium text-zinc-500 mb-1 block">Brand</label>
-
-                      <input
-                        list="brands"
-                        placeholder="Brand"
-                        value={sessionNewProduct.brand}
-                        onChange={(e) =>
-                          setSessionNewProduct({
-                            ...sessionNewProduct,
-                            brand: e.target.value,
-                          })
-                        }
-                        className="w-full border-2 rounded-xl px-3 py-2.5 bg-white"
-                      />
-
-                    </div>
-
-                    <div>
-
-                      <label className="text-xs font-medium text-zinc-500 mb-1 block">Shade</label>
-
-                      <input
-                        placeholder="Shade"
-                        value={sessionNewProduct.shade}
-                        onChange={(e) =>
-                          setSessionNewProduct({
-                            ...sessionNewProduct,
-                            shade: e.target.value,
-                          })
-                        }
-                        className="w-full border-2 rounded-xl px-3 py-2.5 bg-white"
-                      />
-
-                    </div>
-
-                    <div>
-
-                      <label className="text-xs font-medium text-zinc-500 mb-1 block">Weight</label>
-
-                      <input
-                        placeholder="Weight"
-                        value={sessionNewProduct.weight}
-                        onChange={(e) =>
-                          setSessionNewProduct({
-                            ...sessionNewProduct,
-                            weight: e.target.value,
-                          })
-                        }
-                        className="w-full border-2 rounded-xl px-3 py-2.5 bg-white"
-                      />
-
-                    </div>
-
-                    <div>
-
-                      <label className="text-xs font-medium text-zinc-500 mb-1 block">MRP</label>
-
-                      <input
-                        type="number"
-                        placeholder="MRP"
-                        value={sessionNewProduct.mrp}
-                        onChange={(e) =>
-                          setSessionNewProduct({
-                            ...sessionNewProduct,
-                            mrp: e.target.value,
-                          })
-                        }
-                        className="w-full border-2 rounded-xl px-3 py-2.5 bg-white"
-                      />
-
-                    </div>
-
-                    <div>
-
-                      <label className="text-xs font-medium text-zinc-500 mb-1 block">Cost Price</label>
-
-                      <input
-                        type="number"
-                        placeholder="Cost Price"
-                        value={sessionNewProduct.costPrice}
-                        onChange={(e) =>
-                          setSessionNewProduct({
-                            ...sessionNewProduct,
-                            costPrice: e.target.value,
-                          })
-                        }
-                        className="w-full border-2 rounded-xl px-3 py-2.5 bg-white"
-                      />
-
-                    </div>
-
-                    <div>
-
-                      <label className="text-xs font-medium text-zinc-500 mb-1 block">Quantity</label>
-
-                      <input
-                        type="number"
-                        placeholder="Quantity"
-                        value={sessionNewProduct.qty}
-                        onChange={(e) =>
-                          setSessionNewProduct({
-                            ...sessionNewProduct,
-                            qty: e.target.value,
-                          })
-                        }
-                        className="w-full border-2 rounded-xl px-3 py-2.5 bg-white"
-                      />
-
-                    </div>
-
-                  </div>
-
-                  <div className="flex gap-3">
-
-                    <button
-                      onClick={confirmSessionNewProduct}
-                      className="flex-1 bg-amber-500 hover:bg-amber-600 transition-colors text-white py-3 rounded-xl font-bold"
-                    >
-
-                      Add to Lot
-
-                    </button>
-
-                    <button
-                      onClick={() =>
-                        setSessionNewProduct(null)
-                      }
-                      className="flex-1 bg-gray-200 hover:bg-gray-300 transition-colors py-3 rounded-xl font-bold"
-                    >
-
-                      Skip
-
-                    </button>
-
-                  </div>
-
-                </div>
-
-              )}
 
               {sessionItems.length === 0 ? (
 
@@ -2107,6 +2288,47 @@ export default function Home() {
                 {' '}total units
 
               </p>
+
+            </div>
+
+          )}
+
+          {/* OLD STOCK PANEL — instant per-scan saves, no session list */}
+
+          {mode === 'ADD' && oldStockModeActive && (
+
+            <div className="mt-6 border-2 border-indigo-200 rounded-2xl p-6 bg-indigo-50/40 flex items-center justify-between flex-wrap gap-3">
+
+              <div>
+
+                <p className="text-sm text-zinc-500">
+
+                  Adding Old Stock
+
+                </p>
+
+                <p className="font-bold text-lg text-zinc-900">
+
+                  Scan a barcode to update its stock instantly
+
+                </p>
+
+                <p className="text-xs text-zinc-400 mt-1">
+
+                  {oldStockAddedCount} product{oldStockAddedCount === 1 ? '' : 's'} updated so far — not logged in Stock Log or Lifetime Purchase.
+
+                </p>
+
+              </div>
+
+              <button
+                onClick={stopOldStockMode}
+                className="bg-gray-200 hover:bg-gray-300 transition-colors px-6 py-3 rounded-xl font-bold"
+              >
+
+                Stop
+
+              </button>
 
             </div>
 
@@ -3066,6 +3288,143 @@ export default function Home() {
                   )
                 }
                 className="flex-1 bg-gray-200 py-4 rounded-2xl font-bold text-xl"
+              >
+
+                Cancel
+
+              </button>
+
+            </div>
+
+          </div>
+
+        </div>
+
+      )}
+
+      {sessionSuccessInfo && (
+
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+
+          <div className="bg-white rounded-[32px] p-8 shadow-2xl border border-zinc-200 w-full max-w-sm text-center">
+
+            <div className="w-16 h-16 mx-auto rounded-full flex items-center justify-center mb-5 bg-gradient-to-br from-emerald-100 to-green-100 text-emerald-600">
+
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.2"
+                className="w-8 h-8"
+              >
+
+                <path d="M20 6L9 17l-5-5" strokeLinecap="round" strokeLinejoin="round" />
+
+              </svg>
+
+            </div>
+
+            <h2 className="text-2xl font-bold text-zinc-900">
+
+              Stock Lot Saved
+
+            </h2>
+
+            <p className="text-sm text-zinc-500 mt-2">
+
+              {sessionSuccessInfo.count} product{sessionSuccessInfo.count === 1 ? '' : 's'} updated.
+
+            </p>
+
+            <button
+              onClick={() => setSessionSuccessInfo(null)}
+              className="w-full mt-6 py-3.5 rounded-2xl font-bold text-white transition-colors bg-emerald-600 hover:bg-emerald-700"
+            >
+
+              Done
+
+            </button>
+
+          </div>
+
+        </div>
+
+      )}
+
+      {oldStockModalProduct && (
+
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+
+          <div className="bg-white rounded-[32px] p-8 shadow-2xl border border-zinc-200 w-full max-w-md">
+
+            <h2 className="text-2xl font-bold mb-2">
+
+              Add Old Stock
+
+            </h2>
+
+            <p className="text-sm text-zinc-500 mb-6">
+
+              {oldStockModalProduct.product_name}
+              {' · '}
+              {oldStockModalProduct.barcode}
+              {' · '}
+              Current stock: {oldStockModalProduct.current_stock}
+
+            </p>
+
+            <div className="space-y-4">
+
+              <input
+                type="number"
+                autoFocus
+                placeholder="Quantity to Add"
+                value={oldStockQty}
+                onChange={(e) =>
+                  setOldStockQty(e.target.value)
+                }
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') saveOldStockQuickAdd()
+                }}
+                className="w-full border-2 rounded-2xl px-4 py-4"
+              />
+
+              <input
+                type="number"
+                placeholder="Cost Price"
+                value={oldStockCost}
+                onChange={(e) =>
+                  setOldStockCost(e.target.value)
+                }
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') saveOldStockQuickAdd()
+                }}
+                className="w-full border-2 rounded-2xl px-4 py-4"
+              />
+
+            </div>
+
+            <div className="flex gap-4 mt-6">
+
+              <button
+                onClick={saveOldStockQuickAdd}
+                disabled={savingOldStock}
+                className="flex-1 bg-indigo-600 hover:bg-indigo-700 transition-colors text-white py-4 rounded-2xl font-bold disabled:opacity-50"
+              >
+
+                {savingOldStock ? 'Saving...' : 'Add'}
+
+              </button>
+
+              <button
+                onClick={() => {
+                  setOldStockModalProduct(null)
+                  setScanBarcode('')
+                  scanInputRef.current?.focus()
+                }}
+                disabled={savingOldStock}
+                className="flex-1 bg-gray-200 hover:bg-gray-300 transition-colors py-4 rounded-2xl font-bold"
               >
 
                 Cancel

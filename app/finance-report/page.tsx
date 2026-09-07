@@ -162,6 +162,7 @@ export default function FinanceReportPage() {
   const miscExByMonth = sumByMonth(miscExpenses, 'expense_date', 'amount')
   const refundByMonth = sumByMonth(refunds, 'refund_date', 'amount')
   const supplierPaymentByMonth = sumByMonth(supplierPayments, 'payment_date', 'amount')
+  const loanPaymentByMonth = sumByMonth(loanPayments, 'payment_date', 'amount')
 
   const allMonths = Array.from(
     new Set([
@@ -173,6 +174,7 @@ export default function FinanceReportPage() {
       ...Object.keys(miscExByMonth),
       ...Object.keys(refundByMonth),
       ...Object.keys(supplierPaymentByMonth),
+      ...Object.keys(loanPaymentByMonth),
     ])
   ).sort()
 
@@ -186,11 +188,12 @@ export default function FinanceReportPage() {
     const misc = miscExByMonth[month] || 0
     const refund = refundByMonth[month] || 0
     const supplierPayment = supplierPaymentByMonth[month] || 0
+    const loanPayment = loanPaymentByMonth[month] || 0
 
-    const totalExpense = rent + staff + admin + operating + misc + refund + supplierPayment
+    const totalExpense = rent + staff + admin + operating + misc + refund + supplierPayment + loanPayment
     const netProfit = income - totalExpense
 
-    return { month, income, rent, staff, admin, operating, misc, refund, supplierPayment, totalExpense, netProfit }
+    return { month, income, rent, staff, admin, operating, misc, refund, supplierPayment, loanPayment, totalExpense, netProfit }
 
   })
 
@@ -207,6 +210,7 @@ export default function FinanceReportPage() {
   const lifetimeMisc = monthlyRows.reduce((s, r) => s + r.misc, 0)
   const lifetimeRefund = monthlyRows.reduce((s, r) => s + r.refund, 0)
   const lifetimeSupplierPayment = monthlyRows.reduce((s, r) => s + r.supplierPayment, 0)
+  const lifetimeLoanPayment = monthlyRows.reduce((s, r) => s + r.loanPayment, 0)
 
   const expenseBreakdown = [
     { label: 'Rent', value: lifetimeRent, color: '#6366F1' },
@@ -216,6 +220,7 @@ export default function FinanceReportPage() {
     { label: 'Misc Expenses', value: lifetimeMisc, color: '#EC4899' },
     { label: 'Refunds', value: lifetimeRefund, color: '#EF4444' },
     { label: 'Supplier Payment', value: lifetimeSupplierPayment, color: '#18181B' },
+    { label: 'Loan Payment', value: lifetimeLoanPayment, color: '#0891B2' },
   ]
 
   // ---- Monthly Report (PDF) data ----
@@ -231,6 +236,7 @@ export default function FinanceReportPage() {
       misc: 0,
       refund: 0,
       supplierPayment: 0,
+      loanPayment: 0,
       totalExpense: 0,
       netProfit: 0,
     }
@@ -243,6 +249,7 @@ export default function FinanceReportPage() {
     { label: 'Misc Expenses', value: reportRow.misc, color: '#EC4899' },
     { label: 'Refunds', value: reportRow.refund, color: '#EF4444' },
     { label: 'Supplier Payment', value: reportRow.supplierPayment, color: '#18181B' },
+    { label: 'Loan Payment', value: reportRow.loanPayment, color: '#0891B2' },
   ]
 
   const cashoutsForMonth = darazCashouts.filter(
@@ -383,6 +390,7 @@ export default function FinanceReportPage() {
       'Misc Expenses': r.misc,
       Refunds: r.refund,
       'Supplier Payment': r.supplierPayment,
+      'Loan Payment': r.loanPayment,
       'Total Expenses': r.totalExpense,
       'Net Profit': r.netProfit,
     }))
@@ -420,7 +428,7 @@ export default function FinanceReportPage() {
 
             <p className="text-sm text-zinc-500 mt-1">
 
-              Net profit = Daraz Cash In − (Rent + Staff + Admin Finance + Operating Expenses + Misc Expenses + Refunds + Supplier Payment)
+              Net profit = Daraz Cash In − (Rent + Staff + Admin Finance + Operating Expenses + Misc Expenses + Refunds + Supplier Payment + Loan Payment)
 
             </p>
 
@@ -571,6 +579,7 @@ export default function FinanceReportPage() {
                     <th className="pb-3 pr-4 text-sm font-medium text-zinc-500 text-right">Misc</th>
                     <th className="pb-3 pr-4 text-sm font-medium text-zinc-500 text-right">Refunds</th>
                     <th className="pb-3 pr-4 text-sm font-medium text-zinc-500 text-right">Supplier Payment</th>
+                    <th className="pb-3 pr-4 text-sm font-medium text-zinc-500 text-right">Loan Payment</th>
                     <th className="pb-3 pr-4 text-sm font-medium text-zinc-500 text-right">Total Expenses</th>
                     <th className="pb-3 text-sm font-medium text-zinc-500 text-right">Net Profit</th>
 
@@ -593,6 +602,7 @@ export default function FinanceReportPage() {
                       <td className="py-3 pr-4 text-right tabular-nums text-zinc-600">Rs. {r.misc.toLocaleString('en-IN')}</td>
                       <td className="py-3 pr-4 text-right tabular-nums text-zinc-600">Rs. {r.refund.toLocaleString('en-IN')}</td>
                       <td className="py-3 pr-4 text-right tabular-nums text-zinc-600">Rs. {r.supplierPayment.toLocaleString('en-IN')}</td>
+                      <td className="py-3 pr-4 text-right tabular-nums text-zinc-600">Rs. {r.loanPayment.toLocaleString('en-IN')}</td>
                       <td className="py-3 pr-4 text-right tabular-nums font-semibold text-red-600">Rs. {r.totalExpense.toLocaleString('en-IN')}</td>
                       <td className={`py-3 text-right tabular-nums font-bold ${r.netProfit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                         Rs. {r.netProfit.toLocaleString('en-IN')}
@@ -617,6 +627,7 @@ export default function FinanceReportPage() {
                     <td className="pt-3 pr-4 text-right tabular-nums">Rs. {monthlyRows.reduce((s, r) => s + r.misc, 0).toLocaleString('en-IN')}</td>
                     <td className="pt-3 pr-4 text-right tabular-nums">Rs. {monthlyRows.reduce((s, r) => s + r.refund, 0).toLocaleString('en-IN')}</td>
                     <td className="pt-3 pr-4 text-right tabular-nums">Rs. {monthlyRows.reduce((s, r) => s + r.supplierPayment, 0).toLocaleString('en-IN')}</td>
+                    <td className="pt-3 pr-4 text-right tabular-nums">Rs. {lifetimeLoanPayment.toLocaleString('en-IN')}</td>
                     <td className="pt-3 pr-4 text-right tabular-nums text-red-600">Rs. {lifetimeExpense.toLocaleString('en-IN')}</td>
                     <td className={`pt-3 text-right tabular-nums ${lifetimeNetProfit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                       Rs. {lifetimeNetProfit.toLocaleString('en-IN')}

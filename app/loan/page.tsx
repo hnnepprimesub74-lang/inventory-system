@@ -19,6 +19,7 @@ type Txn = {
   remark: string
   amount: number
   sourceId: string
+  isLoanBorrowing?: boolean
 }
 
 export default function LoanPage() {
@@ -38,8 +39,24 @@ export default function LoanPage() {
   const [payNote, setPayNote] = useState('')
   const [saving, setSaving] = useState(false)
 
+  const [addLoanAmount, setAddLoanAmount] = useState('')
+  const [addLoanDate, setAddLoanDate] = useState(todayISO())
+  const [addLoanNote, setAddLoanNote] = useState('')
+  const [savingAddLoan, setSavingAddLoan] = useState(false)
+
   const [deleteTarget, setDeleteTarget] = useState<any>(null)
   const [deleting, setDeleting] = useState(false)
+
+  const [deleteBorrowingTarget, setDeleteBorrowingTarget] = useState<any>(null)
+  const [deletingBorrowing, setDeletingBorrowing] = useState(false)
+
+  const [showNewLoan, setShowNewLoan] = useState(false)
+  const [newLoanSourceId, setNewLoanSourceId] = useState('')
+  const [newLoanSourceName, setNewLoanSourceName] = useState('')
+  const [newLoanAmount, setNewLoanAmount] = useState('')
+  const [newLoanDate, setNewLoanDate] = useState(todayISO())
+  const [newLoanNote, setNewLoanNote] = useState('')
+  const [savingNewLoan, setSavingNewLoan] = useState(false)
 
   useEffect(() => {
 
@@ -80,6 +97,7 @@ export default function LoanPage() {
       suppliersRes,
       adminSalaryRes,
       loanPaymentsRes,
+      loanBorrowingsRes,
     ] = await Promise.all([
       supabase.from('cash_sources').select('*').order('name'),
       supabase.from('operating_expenses').select('*'),
@@ -94,6 +112,7 @@ export default function LoanPage() {
       supabase.from('suppliers').select('*'),
       supabase.from('admin_salary').select('*'),
       supabase.from('loan_payments').select('*').order('payment_date', { ascending: false }),
+      supabase.from('loan_borrowings').select('*').order('borrow_date', { ascending: false }),
     ])
 
     const sourceRows: CashSource[] = sourcesRes.data || []
@@ -181,6 +200,16 @@ export default function LoanPage() {
       })
     })
 
+    ;(loanBorrowingsRes.data || []).forEach((r: any) => all.push({
+      id: r.id,
+      date: r.borrow_date,
+      category: 'Loan Taken',
+      remark: r.note || '',
+      amount: Number(r.amount || 0),
+      sourceId: r.source_id,
+      isLoanBorrowing: true,
+    }))
+
     const nonDaraz = all.filter((t) => t.sourceId && t.sourceId !== darazId)
 
     nonDaraz.sort((a, b) => (b.date || '').localeCompare(a.date || ''))
@@ -250,6 +279,44 @@ export default function LoanPage() {
 
   }
 
+  async function addMoreBorrowing() {
+
+    if (!activeSourceId) return
+
+    const amount = Number(addLoanAmount)
+
+    if (!amount || amount <= 0) {
+
+      alert('Enter a valid amount')
+      return
+
+    }
+
+    setSavingAddLoan(true)
+
+    const { error } = await supabase.from('loan_borrowings').insert({
+      source_id: activeSourceId,
+      amount,
+      borrow_date: addLoanDate || todayISO(),
+      note: addLoanNote.trim() || null,
+    })
+
+    setSavingAddLoan(false)
+
+    if (error) {
+
+      alert('Failed to record loan: ' + error.message)
+      return
+
+    }
+
+    setAddLoanAmount('')
+    setAddLoanNote('')
+    setAddLoanDate(todayISO())
+    await load()
+
+  }
+
   async function confirmDeletePayment() {
 
     if (!deleteTarget) return
@@ -271,6 +338,103 @@ export default function LoanPage() {
     }
 
     setDeleteTarget(null)
+    await load()
+
+  }
+
+  async function createNewLoan() {
+
+    const amount = Number(newLoanAmount)
+
+    if (!amount || amount <= 0) {
+
+      alert('Enter a valid amount')
+      return
+
+    }
+
+    let sourceId = newLoanSourceId
+
+    setSavingNewLoan(true)
+
+    if (!sourceId) {
+
+      const trimmedName = newLoanSourceName.trim()
+
+      if (!trimmedName) {
+
+        alert('Pick an existing source or enter a name for the new one')
+        setSavingNewLoan(false)
+        return
+
+      }
+
+      const { data: newSource, error: sourceError } = await supabase
+        .from('cash_sources')
+        .insert({ name: trimmedName })
+        .select()
+        .single()
+
+      if (sourceError || !newSource) {
+
+        alert('Failed to create source: ' + (sourceError?.message || 'unknown error'))
+        setSavingNewLoan(false)
+        return
+
+      }
+
+      sourceId = newSource.id
+
+    }
+
+    const { error } = await supabase.from('loan_borrowings').insert({
+      source_id: sourceId,
+      amount,
+      borrow_date: newLoanDate || todayISO(),
+      note: newLoanNote.trim() || null,
+    })
+
+    setSavingNewLoan(false)
+
+    if (error) {
+
+      alert('Failed to create loan: ' + error.message)
+      return
+
+    }
+
+    setShowNewLoan(false)
+    setNewLoanSourceId('')
+    setNewLoanSourceName('')
+    setNewLoanAmount('')
+    setNewLoanDate(todayISO())
+    setNewLoanNote('')
+    await load()
+    setActiveSourceId(sourceId)
+
+  }
+
+  async function confirmDeleteBorrowing() {
+
+    if (!deleteBorrowingTarget) return
+
+    setDeletingBorrowing(true)
+
+    const { error } = await supabase
+      .from('loan_borrowings')
+      .delete()
+      .eq('id', deleteBorrowingTarget.id)
+
+    setDeletingBorrowing(false)
+
+    if (error) {
+
+      alert('Failed to delete loan: ' + error.message)
+      return
+
+    }
+
+    setDeleteBorrowingTarget(null)
     await load()
 
   }
@@ -297,19 +461,36 @@ export default function LoanPage() {
 
       <div className="max-w-6xl mx-auto space-y-6">
 
-        <div>
+        <div className="flex items-start justify-between flex-wrap gap-3">
 
-          <h1 className="text-3xl font-bold tracking-tight text-zinc-900">
+          <div>
 
-            Loan
+            <h1 className="text-3xl font-bold tracking-tight text-zinc-900">
 
-          </h1>
+              Loan
 
-          <p className="text-sm text-zinc-500 mt-1">
+            </h1>
 
-            Money spent from sources other than Daraz — own cash used to run the business — and payments made to clear it back
+            <p className="text-sm text-zinc-500 mt-1">
 
-          </p>
+              Money spent from sources other than Daraz — own cash used to run the business — and payments made to clear it back
+
+            </p>
+
+          </div>
+
+          {!isViewer && (
+
+            <button
+              onClick={() => setShowNewLoan(true)}
+              className="bg-zinc-900 hover:bg-zinc-800 transition-colors text-white px-5 py-2.5 rounded-xl font-bold text-sm flex-shrink-0"
+            >
+
+              + New Loan
+
+            </button>
+
+          )}
 
         </div>
 
@@ -342,7 +523,7 @@ export default function LoanPage() {
 
           <div className="bg-white rounded-[28px] shadow-xl border border-zinc-200 p-6">
 
-            <p className="text-zinc-500">No non-Daraz cash sources yet. Add one from any expense entry form's Source dropdown.</p>
+            <p className="text-zinc-500">No non-Daraz cash sources yet. Click "New Loan" above to create one, or add one from any expense entry form's Source dropdown.</p>
 
           </div>
 
@@ -404,6 +585,47 @@ export default function LoanPage() {
         {activeSource && (
 
           <>
+
+            {!isViewer && (
+
+              <div className="bg-white rounded-[28px] shadow-xl border border-zinc-200 p-6">
+
+                <h3 className="font-bold text-lg text-zinc-900 mb-4">Add Loan — Borrow More into {activeSource.name}</h3>
+
+                <div className="flex gap-3 flex-wrap items-end">
+
+                  <DatePicker value={addLoanDate} onChange={setAddLoanDate} />
+
+                  <input
+                    type="number"
+                    value={addLoanAmount}
+                    onChange={(e) => setAddLoanAmount(e.target.value)}
+                    placeholder="Amount"
+                    className="border border-zinc-300 rounded-xl px-4 py-2.5 w-40"
+                  />
+
+                  <input
+                    value={addLoanNote}
+                    onChange={(e) => setAddLoanNote(e.target.value)}
+                    placeholder="Note (optional)"
+                    className="border border-zinc-300 rounded-xl px-4 py-2.5 flex-1 min-w-[180px]"
+                  />
+
+                  <button
+                    onClick={addMoreBorrowing}
+                    disabled={savingAddLoan}
+                    className="bg-zinc-900 text-white px-5 py-2.5 rounded-xl font-bold text-sm disabled:opacity-50"
+                  >
+
+                    {savingAddLoan ? 'Saving...' : 'Add Loan'}
+
+                  </button>
+
+                </div>
+
+              </div>
+
+            )}
 
             {!isViewer && (
 
@@ -536,7 +758,10 @@ export default function LoanPage() {
                         <th className="pb-3 pr-4 text-sm font-medium text-zinc-500">Date</th>
                         <th className="pb-3 pr-4 text-sm font-medium text-zinc-500">Category</th>
                         <th className="pb-3 pr-4 text-sm font-medium text-zinc-500">Remark</th>
-                        <th className="pb-3 text-sm font-medium text-zinc-500 text-right">Amount</th>
+                        <th className="pb-3 pr-4 text-sm font-medium text-zinc-500 text-right">Amount</th>
+                        {!isViewer && (
+                          <th className="pb-3 text-sm font-medium text-zinc-500 text-right">Actions</th>
+                        )}
 
                       </tr>
 
@@ -553,9 +778,25 @@ export default function LoanPage() {
                             <td className="py-3 pr-4 text-sm text-zinc-600">{t.date}</td>
                             <td className="py-3 pr-4 text-sm text-zinc-600">{t.category}</td>
                             <td className="py-3 pr-4 text-sm text-zinc-600">{t.remark || '—'}</td>
-                            <td className="py-3 text-right tabular-nums font-semibold text-red-600">
+                            <td className="py-3 pr-4 text-right tabular-nums font-semibold text-red-600">
                               Rs. {t.amount.toLocaleString('en-IN')}
                             </td>
+                            {!isViewer && (
+                              <td className="py-3 text-right whitespace-nowrap">
+
+                                {t.isLoanBorrowing && (
+
+                                  <button
+                                    onClick={() => setDeleteBorrowingTarget(t)}
+                                    className="text-xs font-semibold text-red-600 hover:text-red-800"
+                                  >
+                                    Delete
+                                  </button>
+
+                                )}
+
+                              </td>
+                            )}
 
                           </tr>
 
@@ -586,6 +827,134 @@ export default function LoanPage() {
         onConfirm={confirmDeletePayment}
         onCancel={() => setDeleteTarget(null)}
       />
+
+      <ConfirmDialog
+        open={!!deleteBorrowingTarget}
+        title="Delete this loan?"
+        message={`Delete the Rs. ${Number(deleteBorrowingTarget?.amount || 0).toLocaleString('en-IN')} loan taken on ${deleteBorrowingTarget?.date || ''}? This cannot be undone.`}
+        confirmLabel={deletingBorrowing ? 'Deleting...' : 'Delete'}
+        danger
+        onConfirm={confirmDeleteBorrowing}
+        onCancel={() => setDeleteBorrowingTarget(null)}
+      />
+
+      {showNewLoan && (
+
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+
+          <div className="bg-white rounded-[28px] p-6 shadow-2xl border border-zinc-200 w-full max-w-md">
+
+            <h2 className="text-2xl font-bold text-zinc-900 mb-1">
+
+              New Loan
+
+            </h2>
+
+            <p className="text-sm text-zinc-500 mb-5">
+
+              Record money borrowed, before it's spent on anything.
+
+            </p>
+
+            <div className="space-y-4">
+
+              <div>
+
+                <label className="text-xs font-medium text-zinc-500 mb-1.5 block">Lender / Source</label>
+
+                <select
+                  value={newLoanSourceId}
+                  onChange={(e) => setNewLoanSourceId(e.target.value)}
+                  className="w-full border border-zinc-300 rounded-xl px-4 py-2.5"
+                >
+
+                  <option value="">+ New source...</option>
+
+                  {loanSources.map((s) => (
+                    <option key={s.id} value={s.id}>{s.name}</option>
+                  ))}
+
+                </select>
+
+                {!newLoanSourceId && (
+
+                  <input
+                    value={newLoanSourceName}
+                    onChange={(e) => setNewLoanSourceName(e.target.value)}
+                    placeholder="e.g. Bank Loan, Friend's Loan"
+                    className="w-full border border-zinc-300 rounded-xl px-4 py-2.5 mt-2"
+                  />
+
+                )}
+
+              </div>
+
+              <div>
+
+                <label className="text-xs font-medium text-zinc-500 mb-1.5 block">Amount Borrowed</label>
+
+                <input
+                  type="number"
+                  value={newLoanAmount}
+                  onChange={(e) => setNewLoanAmount(e.target.value)}
+                  placeholder="Amount"
+                  className="w-full border border-zinc-300 rounded-xl px-4 py-2.5"
+                />
+
+              </div>
+
+              <div>
+
+                <label className="text-xs font-medium text-zinc-500 mb-1.5 block">Date</label>
+
+                <DatePicker value={newLoanDate} onChange={setNewLoanDate} />
+
+              </div>
+
+              <div>
+
+                <label className="text-xs font-medium text-zinc-500 mb-1.5 block">Note (optional)</label>
+
+                <input
+                  value={newLoanNote}
+                  onChange={(e) => setNewLoanNote(e.target.value)}
+                  placeholder="Note"
+                  className="w-full border border-zinc-300 rounded-xl px-4 py-2.5"
+                />
+
+              </div>
+
+            </div>
+
+            <div className="flex gap-3 mt-6">
+
+              <button
+                onClick={createNewLoan}
+                disabled={savingNewLoan}
+                className="flex-1 bg-zinc-900 hover:bg-zinc-800 transition-colors text-white py-3 rounded-xl font-bold disabled:opacity-50"
+              >
+
+                {savingNewLoan ? 'Saving...' : 'Create Loan'}
+
+              </button>
+
+              <button
+                onClick={() => setShowNewLoan(false)}
+                disabled={savingNewLoan}
+                className="flex-1 bg-gray-200 hover:bg-gray-300 transition-colors py-3 rounded-xl font-bold"
+              >
+
+                Cancel
+
+              </button>
+
+            </div>
+
+          </div>
+
+        </div>
+
+      )}
 
     </div>
 
