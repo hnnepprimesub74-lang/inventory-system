@@ -88,7 +88,7 @@ export default function LowStockPage() {
 
   const lowStock = products
     .filter((p) => Number(p.current_stock || 0) <= p.reorderPoint)
-    .sort((a, b) => Number(a.current_stock || 0) - Number(b.current_stock || 0))
+    .sort((a, b) => b.reorderPoint - a.reorderPoint)
 
   const outOfStockCount = lowStock.filter((p) => Number(p.current_stock || 0) <= 0).length
   const lowOnlyCount = lowStock.length - outOfStockCount

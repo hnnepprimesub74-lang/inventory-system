@@ -25,6 +25,8 @@ export default function Home() {
 
   const scanInputRef = useRef<any>(null)
 
+  const messageTimeoutRef = useRef<any>(null)
+
   const [deleteProductId,
     setDeleteProductId] =
     useState<any>(null)
@@ -38,6 +40,20 @@ export default function Home() {
 
   const [message, setMessage] = useState('')
 
+  function showScanMessage(text: string) {
+
+    if (messageTimeoutRef.current) {
+      clearTimeout(messageTimeoutRef.current)
+    }
+
+    setMessage(text)
+
+    messageTimeoutRef.current = setTimeout(() => {
+      setMessage('')
+    }, 4000)
+
+  }
+
   const [search, setSearch] =
     useState('')
 
@@ -47,6 +63,9 @@ export default function Home() {
 
   const [mode, setMode] =
     useState('SELL')
+
+  const [scannerFullScreen, setScannerFullScreen] =
+    useState(false)
 
   const [selectedCategory,
     setSelectedCategory] =
@@ -62,6 +81,22 @@ export default function Home() {
   const [editingProduct,
     setEditingProduct] =
     useState<any>(null)
+
+  const [bulkPriceGroup,
+    setBulkPriceGroup] =
+    useState<any>(null)
+
+  const [bulkMrp,
+    setBulkMrp] =
+    useState('')
+
+  const [bulkCost,
+    setBulkCost] =
+    useState('')
+
+  const [savingBulkPrice,
+    setSavingBulkPrice] =
+    useState(false)
 
   const [editName,
     setEditName] =
@@ -206,6 +241,26 @@ export default function Home() {
     loadData()
 
   }, [])
+
+  useEffect(() => {
+
+    if (scannerFullScreen) {
+
+      document.body.style.overflow = 'hidden'
+
+    } else {
+
+      document.body.style.overflow = ''
+
+    }
+
+    return () => {
+
+      document.body.style.overflow = ''
+
+    }
+
+  }, [scannerFullScreen])
 
   async function checkUser() {
 
@@ -921,13 +976,9 @@ export default function Home() {
 
       fetchProducts()
 
-      setMessage(
+      showScanMessage(
         `${product.product_name} sold`
       )
-
-      setTimeout(() => {
-        setMessage('')
-      }, 1000)
 
       setScanBarcode('')
 
@@ -992,6 +1043,67 @@ export default function Home() {
     setEditingProduct(
       null
     )
+
+    fetchProducts()
+
+  }
+
+  function openBulkPrice(group: any) {
+
+    const firstVariant = group.variants[0]
+
+    const sameMrp = group.variants.every(
+      (v: any) => String(v.mrp ?? '') === String(firstVariant?.mrp ?? '')
+    )
+
+    const sameCost = group.variants.every(
+      (v: any) => String(v.cost_price ?? '') === String(firstVariant?.cost_price ?? '')
+    )
+
+    setBulkMrp(sameMrp && firstVariant?.mrp != null ? String(firstVariant.mrp) : '')
+    setBulkCost(sameCost && firstVariant?.cost_price != null ? String(firstVariant.cost_price) : '')
+    setBulkPriceGroup(group)
+
+  }
+
+  async function applyBulkPrice() {
+
+    if (!bulkPriceGroup) return
+
+    if (bulkMrp === '' && bulkCost === '') {
+
+      alert('Enter an MRP or Cost Price to apply')
+
+      return
+
+    }
+
+    const updates: any = {}
+
+    if (bulkCost !== '') updates.cost_price = Number(bulkCost)
+    if (bulkMrp !== '') updates.mrp = Number(bulkMrp)
+
+    setSavingBulkPrice(true)
+
+    const ids = bulkPriceGroup.variants.map((v: any) => v.id)
+
+    const { error } =
+      await supabase
+        .from('products')
+        .update(updates)
+        .in('id', ids)
+
+    setSavingBulkPrice(false)
+
+    if (error) {
+
+      alert(error.message)
+
+      return
+
+    }
+
+    setBulkPriceGroup(null)
 
     fetchProducts()
 
@@ -1237,6 +1349,13 @@ export default function Home() {
   const productGroups = Object.values(productGroupsMap)
     .map((g: any) => {
 
+      g.variants = [...g.variants].sort((a: any, b: any) =>
+        String(a.shade || '').localeCompare(String(b.shade || ''), undefined, {
+          numeric: true,
+          sensitivity: 'base',
+        })
+      )
+
       const totalStock = g.variants.reduce(
         (s: number, v: any) => s + Number(v.current_stock || 0),
         0
@@ -1327,7 +1446,7 @@ export default function Home() {
 
         {/* OVERVIEW */}
 
-        <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-5 gap-4">
+        <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-4">
 
           <div className="bg-white rounded-2xl shadow-sm border border-zinc-200 p-5">
 
@@ -1418,21 +1537,134 @@ export default function Home() {
 
           </button>
 
+          {!isViewer && (
+
+          <button
+            onClick={() => setScannerFullScreen(true)}
+            className="bg-white rounded-2xl shadow-sm border border-zinc-200 p-5 text-left hover:bg-zinc-50 transition-colors"
+          >
+
+            <div className="w-10 h-10 rounded-xl bg-blue-100 text-blue-600 flex items-center justify-center mb-3">
+
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="w-5 h-5">
+                <path d="M3 5v14M7 5v14M10 5v14M14 5v10M17 5v14M21 5v14" />
+              </svg>
+
+            </div>
+
+            <p className="text-xs text-zinc-500">Barcode Scanner</p>
+            <p className="text-sm font-bold tracking-tight mt-1 text-zinc-900">Sell / Add / Return</p>
+
+          </button>
+
+          )}
+
         </div>
 
         {/* SCANNER */}
 
         {!isViewer && (
 
-        <div className="bg-white rounded-[28px] shadow-xl border border-zinc-200 p-8">
+        <>
 
-          <h2 className="text-2xl font-bold mb-6 text-zinc-900">
+        {scannerFullScreen && (
 
-            Barcode Scanner
+          <div
+            onClick={() => setScannerFullScreen(false)}
+            className="fixed inset-0 z-40 bg-zinc-900/50 backdrop-blur-sm"
+          />
 
-          </h2>
+        )}
 
-          <div className="flex flex-col sm:flex-row gap-3 mb-6">
+        <div
+          className={
+            scannerFullScreen
+              ? 'fixed z-50 top-4 sm:top-1/2 left-1/2 -translate-x-1/2 sm:-translate-y-1/2 w-[calc(100%-2rem)] max-w-lg max-h-[calc(100vh-2rem)] sm:max-h-[85vh] overflow-y-auto bg-white rounded-3xl shadow-2xl p-5 sm:p-6'
+              : 'bg-white rounded-[28px] shadow-xl border border-zinc-200 p-4 sm:p-8'
+          }
+        >
+
+          <div
+            className={
+              scannerFullScreen
+                ? 'sticky top-0 -mx-5 sm:-mx-6 -mt-5 sm:-mt-6 px-5 sm:px-6 pt-5 sm:pt-6 pb-4 mb-6 bg-white/95 backdrop-blur border-b border-zinc-100 z-10'
+                : 'mb-6'
+            }
+          >
+
+          <div className="flex items-center justify-between mb-1">
+
+            <div>
+
+              <h2 className="text-xl sm:text-2xl font-bold text-zinc-900">
+
+                Barcode Scanner
+
+              </h2>
+
+              {scannerFullScreen && (
+                <p className="text-xs text-zinc-400 mt-0.5">
+                  Scan to sell, add stock, or process a return
+                </p>
+              )}
+
+            </div>
+
+            {scannerFullScreen ? (
+
+              <button
+                onClick={() => setScannerFullScreen(false)}
+                aria-label="Close scanner"
+                className="w-10 h-10 flex items-center justify-center rounded-full bg-zinc-100 text-zinc-600 hover:bg-zinc-200 active:scale-95 transition-all flex-shrink-0"
+              >
+
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-5 h-5">
+                  <path d="M6 6l12 12M18 6L6 18" strokeLinecap="round" />
+                </svg>
+
+              </button>
+
+            ) : (
+
+              <button
+                onClick={() => setScannerFullScreen(true)}
+                aria-label="Open scanner"
+                className="sm:hidden w-10 h-10 flex items-center justify-center rounded-full bg-zinc-100 text-zinc-600 hover:bg-zinc-200 transition-colors flex-shrink-0"
+              >
+
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-5 h-5">
+                  <path d="M4 9V5a1 1 0 0 1 1-1h4M15 4h4a1 1 0 0 1 1 1v4M20 15v4a1 1 0 0 1-1 1h-4M9 20H5a1 1 0 0 1-1-1v-4" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+
+              </button>
+
+            )}
+
+          </div>
+
+          {scannerFullScreen && (
+
+            <div className="grid grid-cols-2 gap-3 mt-4 mb-1">
+
+              <div className="rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-3">
+
+                <p className="text-[11px] font-medium text-zinc-500">Total Stock Value</p>
+                <p className="text-lg font-bold tracking-tight mt-0.5 tabular-nums text-zinc-900">Rs. {totalStockValue.toLocaleString('en-IN')}</p>
+
+              </div>
+
+              <div className="rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-3">
+
+                <p className="text-[11px] font-medium text-zinc-500">Total Units in Stock</p>
+                <p className="text-lg font-bold tracking-tight mt-0.5 tabular-nums text-zinc-900">{totalUnitsInStock.toLocaleString('en-IN')}</p>
+
+              </div>
+
+            </div>
+
+          )}
+
+          <div className="flex flex-col sm:flex-row gap-3 mt-4">
 
             <div className="flex gap-2 bg-zinc-100 p-1.5 rounded-2xl flex-1">
 
@@ -1440,7 +1672,7 @@ export default function Home() {
                 onClick={() =>
                   setMode('SELL')
                 }
-                className={`flex-1 px-6 py-3 rounded-xl font-semibold text-sm transition-colors ${mode === 'SELL'
+                className={`flex-1 px-2 sm:px-6 py-3 rounded-xl font-semibold text-xs sm:text-sm transition-colors ${mode === 'SELL'
                   ? 'bg-blue-600 text-white shadow-sm'
                   : 'text-zinc-600 hover:bg-zinc-200'
                   }`}
@@ -1456,7 +1688,7 @@ export default function Home() {
                     'ADD'
                   )
                 }
-                className={`flex-1 px-6 py-3 rounded-xl font-semibold text-sm transition-colors ${mode === 'ADD'
+                className={`flex-1 px-2 sm:px-6 py-3 rounded-xl font-semibold text-xs sm:text-sm transition-colors ${mode === 'ADD'
                   ? 'bg-green-600 text-white shadow-sm'
                   : 'text-zinc-600 hover:bg-zinc-200'
                   }`}
@@ -1470,7 +1702,7 @@ export default function Home() {
                 onClick={() =>
                   setMode('RETURN')
                 }
-                className={`flex-1 px-6 py-3 rounded-xl font-semibold text-sm transition-colors ${mode === 'RETURN'
+                className={`flex-1 px-2 sm:px-6 py-3 rounded-xl font-semibold text-xs sm:text-sm transition-colors ${mode === 'RETURN'
                   ? 'bg-red-600 text-white shadow-sm'
                   : 'text-zinc-600 hover:bg-zinc-200'
                   }`}
@@ -1481,6 +1713,8 @@ export default function Home() {
               </button>
 
             </div>
+
+          </div>
 
           </div>
 
@@ -1827,19 +2061,33 @@ export default function Home() {
 
           {mode === 'ADD' && sessionNewProduct && (
 
-            <div className="border rounded-2xl p-4 bg-amber-50 space-y-3 mt-6">
+            <div className="border border-amber-200 rounded-2xl p-4 sm:p-5 bg-amber-50 space-y-4 mt-6">
 
-              <p className="font-semibold text-zinc-900">
+              <div className="flex items-center gap-2 flex-wrap">
 
-                New product scanned: {sessionNewProduct.barcode}
+                <span className="inline-flex items-center gap-1.5 bg-amber-500 text-white text-xs font-bold px-3 py-1.5 rounded-full">
 
-              </p>
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5">
+                    <path d="M3 5v14M7 5v14M10 5v14M14 5v10M17 5v14M21 5v14" />
+                  </svg>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  New Product
+
+                </span>
+
+                <span className="text-sm font-semibold text-zinc-700">
+
+                  {sessionNewProduct.barcode}
+
+                </span>
+
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
 
                 <div className="sm:col-span-2">
 
-                  <label className="text-xs font-medium text-zinc-500 mb-1 block">Product Name</label>
+                  <label className="text-xs font-semibold text-zinc-600 mb-1.5 block">Product Name</label>
 
                   <input
                     list="productNames"
@@ -1880,10 +2128,10 @@ export default function Home() {
                       }
 
                     }}
-                    className="w-full border-2 rounded-xl px-3 py-2.5 bg-white"
+                    className="w-full border border-zinc-300 rounded-xl px-4 py-3 text-base bg-white focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-amber-400"
                   />
 
-                  <p className="text-xs text-zinc-400 mt-1">
+                  <p className="text-xs text-zinc-400 mt-1.5">
 
                     Pick an existing name to auto-fill Category, Brand, Weight, MRP &amp; Cost — you'll just need to add the Shade.
 
@@ -1893,7 +2141,7 @@ export default function Home() {
 
                 <div>
 
-                  <label className="text-xs font-medium text-zinc-500 mb-1 block">Category</label>
+                  <label className="text-xs font-semibold text-zinc-600 mb-1.5 block">Category</label>
 
                   <input
                     list="categories"
@@ -1905,14 +2153,14 @@ export default function Home() {
                         category: e.target.value,
                       })
                     }
-                    className="w-full border-2 rounded-xl px-3 py-2.5 bg-white"
+                    className="w-full border border-zinc-300 rounded-xl px-4 py-3 text-base bg-white focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-amber-400"
                   />
 
                 </div>
 
                 <div>
 
-                  <label className="text-xs font-medium text-zinc-500 mb-1 block">Brand</label>
+                  <label className="text-xs font-semibold text-zinc-600 mb-1.5 block">Brand</label>
 
                   <input
                     list="brands"
@@ -1924,14 +2172,14 @@ export default function Home() {
                         brand: e.target.value,
                       })
                     }
-                    className="w-full border-2 rounded-xl px-3 py-2.5 bg-white"
+                    className="w-full border border-zinc-300 rounded-xl px-4 py-3 text-base bg-white focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-amber-400"
                   />
 
                 </div>
 
                 <div>
 
-                  <label className="text-xs font-medium text-zinc-500 mb-1 block">Shade</label>
+                  <label className="text-xs font-semibold text-zinc-600 mb-1.5 block">Shade</label>
 
                   <input
                     placeholder="Shade"
@@ -1942,14 +2190,14 @@ export default function Home() {
                         shade: e.target.value,
                       })
                     }
-                    className="w-full border-2 rounded-xl px-3 py-2.5 bg-white"
+                    className="w-full border border-zinc-300 rounded-xl px-4 py-3 text-base bg-white focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-amber-400"
                   />
 
                 </div>
 
                 <div>
 
-                  <label className="text-xs font-medium text-zinc-500 mb-1 block">Weight</label>
+                  <label className="text-xs font-semibold text-zinc-600 mb-1.5 block">Weight</label>
 
                   <input
                     placeholder="Weight"
@@ -1960,17 +2208,18 @@ export default function Home() {
                         weight: e.target.value,
                       })
                     }
-                    className="w-full border-2 rounded-xl px-3 py-2.5 bg-white"
+                    className="w-full border border-zinc-300 rounded-xl px-4 py-3 text-base bg-white focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-amber-400"
                   />
 
                 </div>
 
                 <div>
 
-                  <label className="text-xs font-medium text-zinc-500 mb-1 block">MRP</label>
+                  <label className="text-xs font-semibold text-zinc-600 mb-1.5 block">MRP</label>
 
                   <input
                     type="number"
+                    inputMode="decimal"
                     placeholder="MRP"
                     value={sessionNewProduct.mrp}
                     onChange={(e) =>
@@ -1979,17 +2228,18 @@ export default function Home() {
                         mrp: e.target.value,
                       })
                     }
-                    className="w-full border-2 rounded-xl px-3 py-2.5 bg-white"
+                    className="w-full border border-zinc-300 rounded-xl px-4 py-3 text-base bg-white focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-amber-400"
                   />
 
                 </div>
 
                 <div>
 
-                  <label className="text-xs font-medium text-zinc-500 mb-1 block">Cost Price</label>
+                  <label className="text-xs font-semibold text-zinc-600 mb-1.5 block">Cost Price</label>
 
                   <input
                     type="number"
+                    inputMode="decimal"
                     placeholder="Cost Price"
                     value={sessionNewProduct.costPrice}
                     onChange={(e) =>
@@ -1998,17 +2248,18 @@ export default function Home() {
                         costPrice: e.target.value,
                       })
                     }
-                    className="w-full border-2 rounded-xl px-3 py-2.5 bg-white"
+                    className="w-full border border-zinc-300 rounded-xl px-4 py-3 text-base bg-white focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-amber-400"
                   />
 
                 </div>
 
-                <div>
+                <div className="sm:col-span-2">
 
-                  <label className="text-xs font-medium text-zinc-500 mb-1 block">Quantity</label>
+                  <label className="text-xs font-semibold text-zinc-600 mb-1.5 block">Quantity</label>
 
                   <input
                     type="number"
+                    inputMode="numeric"
                     placeholder="Quantity"
                     value={sessionNewProduct.qty}
                     onChange={(e) =>
@@ -2017,18 +2268,18 @@ export default function Home() {
                         qty: e.target.value,
                       })
                     }
-                    className="w-full border-2 rounded-xl px-3 py-2.5 bg-white"
+                    className="w-full border border-zinc-300 rounded-xl px-4 py-3 text-base bg-white focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-amber-400"
                   />
 
                 </div>
 
               </div>
 
-              <div className="flex gap-3">
+              <div className="flex gap-3 sticky bottom-0 bg-amber-50 pt-1 pb-0.5 -mx-4 sm:-mx-5 px-4 sm:px-5">
 
                 <button
                   onClick={confirmSessionNewProduct}
-                  className="flex-1 bg-amber-500 hover:bg-amber-600 transition-colors text-white py-3 rounded-xl font-bold"
+                  className="flex-1 bg-amber-500 hover:bg-amber-600 active:scale-[0.98] transition-all text-white py-3.5 rounded-xl font-bold shadow-sm"
                 >
 
                   {oldStockModeActive ? 'Add Product' : 'Add to Lot'}
@@ -2039,7 +2290,7 @@ export default function Home() {
                   onClick={() =>
                     setSessionNewProduct(null)
                   }
-                  className="flex-1 bg-gray-200 hover:bg-gray-300 transition-colors py-3 rounded-xl font-bold"
+                  className="flex-1 bg-white border border-zinc-300 hover:bg-zinc-50 active:scale-[0.98] transition-all text-zinc-700 py-3.5 rounded-xl font-bold"
                 >
 
                   Skip
@@ -2268,6 +2519,8 @@ export default function Home() {
 
         </div>
 
+        </>
+
         )}
 
         {/* INVENTORY */}
@@ -2449,11 +2702,18 @@ export default function Home() {
                     className={`border rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-shadow border-l-4 ${isEmptyGroup ? 'border-l-red-400 border-zinc-200' : 'border-l-indigo-400 border-zinc-200'}`}
                   >
 
-                    <button
+                    <div
+                      role="button"
+                      tabIndex={0}
                       onClick={() =>
                         setExpandedGroups((prev) => ({ ...prev, [group.key]: prev[group.key] === false }))
                       }
-                      className="w-full flex items-center gap-4 px-5 py-4 hover:bg-indigo-50/40 transition-colors text-left"
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          setExpandedGroups((prev) => ({ ...prev, [group.key]: prev[group.key] === false }))
+                        }
+                      }}
+                      className="w-full flex items-center gap-4 px-5 py-4 hover:bg-indigo-50/40 transition-colors text-left cursor-pointer"
                     >
 
                       {group.image ? (
@@ -2531,6 +2791,28 @@ export default function Home() {
 
                       </div>
 
+                      {!isViewer && (
+
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            openBulkPrice(group)
+                          }}
+                          title="Set MRP & Cost for all shades"
+                          className="flex items-center gap-1.5 bg-white border border-zinc-200 hover:border-indigo-300 hover:bg-indigo-50 text-zinc-600 hover:text-indigo-600 transition-colors px-3 py-2 rounded-xl text-xs font-semibold flex-shrink-0"
+                        >
+
+                          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="w-3.5 h-3.5">
+                            <path d="M20.59 13.41L13.42 20.58a2 2 0 0 1-2.83 0L3 13V3h10l7.59 7.59a2 2 0 0 1 0 2.82z" strokeLinejoin="round" />
+                            <circle cx="7.5" cy="7.5" r="1.5" />
+                          </svg>
+
+                          <span className="hidden sm:inline">Set MRP &amp; Cost</span>
+
+                        </button>
+
+                      )}
+
                       <svg
                         xmlns="http://www.w3.org/2000/svg"
                         viewBox="0 0 24 24"
@@ -2544,11 +2826,99 @@ export default function Home() {
 
                       </svg>
 
-                    </button>
+                    </div>
 
                     {isOpen && (
 
-                      <div className="border-t border-zinc-200 overflow-x-auto">
+                      <div className="border-t border-zinc-200">
+
+                        <div className="sm:hidden divide-y divide-zinc-100">
+
+                          {group.variants.map((product: any) => {
+
+                            const reorderPoint = reorderPointById[product.id] ?? 0
+                            const stockNum = Number(product.current_stock || 0)
+                            const isOutOfStock = stockNum <= 0
+                            const isLowStock = !isOutOfStock && stockNum <= reorderPoint
+
+                            return (
+
+                              <div key={product.id} className="px-5 py-3 flex items-center gap-3">
+
+                                <div className="flex-1 min-w-0">
+
+                                  <p className="text-sm font-semibold text-zinc-900 truncate">
+                                    {product.shade || '—'}
+                                  </p>
+
+                                  <p className="text-xs text-zinc-500 mt-0.5">
+                                    {product.weight || '—'}
+                                  </p>
+
+                                </div>
+
+                                <span
+                                  className={`inline-flex items-center justify-center min-w-[2.5rem] px-2.5 py-1 rounded-full text-xs font-bold flex-shrink-0 ${isOutOfStock
+                                    ? 'bg-red-100 text-red-700'
+                                    : isLowStock
+                                      ? 'bg-amber-100 text-amber-700'
+                                      : 'bg-emerald-100 text-emerald-700'
+                                    }`}
+                                >
+
+                                  {product.current_stock}
+
+                                </span>
+
+                                {!isViewer && (
+
+                                  <button
+                                    onClick={() => {
+
+                                      setEditingProduct(product)
+                                      setEditName(product.product_name)
+                                      setEditCategory(product.category)
+                                      setEditBrand(product.brand)
+                                      setEditCost(product.cost_price)
+                                      setEditMrp(product.mrp)
+                                      setEditStock(product.current_stock)
+                                      setEditBarcode(product.barcode)
+                                      setEditShade(product.shade)
+                                      setEditWeight(product.weight)
+                                      setEditImage(product.image_url)
+
+                                    }}
+                                    title="Edit"
+                                    className="w-9 h-9 flex items-center justify-center rounded-lg border border-zinc-200 text-zinc-600 flex-shrink-0"
+                                  >
+
+                                    <svg
+                                      xmlns="http://www.w3.org/2000/svg"
+                                      viewBox="0 0 24 24"
+                                      fill="none"
+                                      stroke="currentColor"
+                                      strokeWidth="1.8"
+                                      className="w-4 h-4"
+                                    >
+
+                                      <path d="M12 20h9" />
+                                      <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
+
+                                    </svg>
+
+                                  </button>
+
+                                )}
+
+                              </div>
+
+                            )
+
+                          })}
+
+                        </div>
+
+                        <div className="hidden sm:block overflow-x-auto">
 
                         <table className="w-full border-collapse">
 
@@ -2779,6 +3149,8 @@ export default function Home() {
                           </tbody>
 
                         </table>
+
+                        </div>
 
                       </div>
 
@@ -3051,6 +3423,105 @@ export default function Home() {
                     )
                   }
                   className="flex-1 bg-gray-300 py-4 rounded-2xl font-bold"
+                >
+
+                  Cancel
+
+                </button>
+
+              </div>
+
+            </div>
+
+          </div>
+
+        )}
+
+        {/* BULK MRP & COST MODAL */}
+
+        {bulkPriceGroup && (
+
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+
+            <div className="bg-white rounded-[32px] shadow-2xl border border-zinc-200 w-full max-w-md">
+
+              <div className="px-6 sm:px-8 pt-6 sm:pt-8 pb-2">
+
+                <h2 className="text-2xl font-bold">
+
+                  Set MRP &amp; Cost
+
+                </h2>
+
+                <p className="text-sm text-zinc-500 mt-1">
+
+                  Applies to all {bulkPriceGroup.variants.length} {bulkPriceGroup.variants.length === 1 ? 'shade' : 'shades'} of {bulkPriceGroup.productName}
+
+                </p>
+
+              </div>
+
+              <div className="grid grid-cols-2 gap-4 px-6 sm:px-8 py-4">
+
+                <div>
+
+                  <label className="text-xs font-medium text-zinc-500 mb-1.5 block">MRP</label>
+
+                  <input
+                    type="number"
+                    inputMode="decimal"
+                    placeholder="MRP"
+                    value={bulkMrp}
+                    onChange={(e) =>
+                      setBulkMrp(e.target.value)
+                    }
+                    className="w-full border-2 rounded-2xl px-4 py-3"
+                  />
+
+                </div>
+
+                <div>
+
+                  <label className="text-xs font-medium text-zinc-500 mb-1.5 block">Cost Price</label>
+
+                  <input
+                    type="number"
+                    inputMode="decimal"
+                    placeholder="Cost Price"
+                    value={bulkCost}
+                    onChange={(e) =>
+                      setBulkCost(e.target.value)
+                    }
+                    className="w-full border-2 rounded-2xl px-4 py-3"
+                  />
+
+                </div>
+
+              </div>
+
+              <p className="text-xs text-zinc-400 px-6 sm:px-8">
+
+                Leave a field blank to leave that price untouched.
+
+              </p>
+
+              <div className="flex gap-4 px-6 sm:px-8 py-5">
+
+                <button
+                  onClick={applyBulkPrice}
+                  disabled={savingBulkPrice}
+                  className="flex-1 bg-indigo-600 hover:bg-indigo-700 transition-colors text-white py-3.5 rounded-2xl font-bold disabled:opacity-50"
+                >
+
+                  {savingBulkPrice ? 'Applying...' : 'Apply to All Shades'}
+
+                </button>
+
+                <button
+                  onClick={() =>
+                    setBulkPriceGroup(null)
+                  }
+                  className="flex-1 bg-gray-200 hover:bg-gray-300 transition-colors py-3.5 rounded-2xl font-bold"
                 >
 
                   Cancel
