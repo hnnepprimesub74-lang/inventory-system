@@ -460,7 +460,7 @@ export default function StockLogPage() {
 
               <button
                 onClick={exportAllLogs}
-                className="bg-gradient-to-r from-emerald-500 to-green-600 hover:from-emerald-600 hover:to-green-700 transition-all text-white px-5 py-3 rounded-2xl font-bold shadow-lg shadow-green-200 flex items-center gap-2"
+                className="inline-flex items-center gap-1.5 border border-zinc-300 text-zinc-600 hover:bg-zinc-50 hover:border-zinc-400 transition-colors px-3 py-1.5 rounded-lg text-xs font-medium"
               >
 
                 <svg
@@ -469,16 +469,16 @@ export default function StockLogPage() {
                   fill="none"
                   stroke="currentColor"
                   strokeWidth="2"
-                  className="w-4 h-4"
+                  className="w-3.5 h-3.5"
                 >
 
-                  <path d="M12 3v12" strokeLinecap="round" />
-                  <path d="M7 10l5 5 5-5" strokeLinecap="round" strokeLinejoin="round" />
-                  <path d="M4 19h16" strokeLinecap="round" />
+                  <path d="M12 3v9" strokeLinecap="round" />
+                  <path d="M8 8l4 4 4-4" strokeLinecap="round" strokeLinejoin="round" />
+                  <path d="M4 17h16" strokeLinecap="round" />
 
                 </svg>
 
-                Export Excel
+                Export
 
               </button>
 

@@ -1446,13 +1446,13 @@ export default function Home() {
 
         {/* OVERVIEW */}
 
-        <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-4">
+        <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-2.5 sm:gap-4">
 
-          <div className="bg-white rounded-2xl shadow-sm border border-zinc-200 p-5">
+          <div className="bg-white rounded-xl sm:rounded-2xl shadow-sm border border-zinc-200 p-3 sm:p-5">
 
-            <div className="w-10 h-10 rounded-xl bg-indigo-100 text-indigo-600 flex items-center justify-center mb-3">
+            <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg sm:rounded-xl bg-indigo-100 text-indigo-600 flex items-center justify-center mb-2 sm:mb-3">
 
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="w-5 h-5">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="w-4 h-4 sm:w-5 sm:h-5">
                 <path d="M12 3l8 4.5v9L12 21l-8-4.5v-9L12 3z" strokeLinejoin="round" />
                 <path d="M12 12l8-4.5M12 12v9M12 12L4 7.5" strokeLinejoin="round" />
               </svg>
@@ -1460,15 +1460,15 @@ export default function Home() {
             </div>
 
             <p className="text-xs text-zinc-500">Total Stock Value</p>
-            <p className="text-2xl font-bold tracking-tight mt-1 tabular-nums text-zinc-900">Rs. {totalStockValue.toLocaleString('en-IN')}</p>
+            <p className="text-lg sm:text-2xl font-bold tracking-tight mt-0.5 sm:mt-1 tabular-nums text-zinc-900">Rs. {totalStockValue.toLocaleString('en-IN')}</p>
 
           </div>
 
-          <div className="bg-white rounded-2xl shadow-sm border border-zinc-200 p-5">
+          <div className="bg-white rounded-xl sm:rounded-2xl shadow-sm border border-zinc-200 p-3 sm:p-5">
 
-            <div className="w-10 h-10 rounded-xl bg-blue-100 text-blue-600 flex items-center justify-center mb-3">
+            <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg sm:rounded-xl bg-blue-100 text-blue-600 flex items-center justify-center mb-2 sm:mb-3">
 
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="w-5 h-5">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="w-4 h-4 sm:w-5 sm:h-5">
                 <rect x="3" y="7" width="18" height="13" rx="2" />
                 <path d="M3 11h18M9 7V5a3 3 0 0 1 6 0v2" />
               </svg>
@@ -1476,16 +1476,16 @@ export default function Home() {
             </div>
 
             <p className="text-xs text-zinc-500">Total Units in Stock</p>
-            <p className="text-2xl font-bold tracking-tight mt-1 tabular-nums text-zinc-900">{totalUnitsInStock.toLocaleString('en-IN')}</p>
-            <p className="text-xs text-zinc-400 mt-0.5">{productsInStockCount} products carry stock</p>
+            <p className="text-lg sm:text-2xl font-bold tracking-tight mt-0.5 sm:mt-1 tabular-nums text-zinc-900">{totalUnitsInStock.toLocaleString('en-IN')}</p>
+            <p className="hidden sm:block text-xs text-zinc-400 mt-0.5">{productsInStockCount} products carry stock</p>
 
           </div>
 
-          <div className="bg-white rounded-2xl shadow-sm border border-zinc-200 p-5">
+          <div className="bg-white rounded-xl sm:rounded-2xl shadow-sm border border-zinc-200 p-3 sm:p-5">
 
-            <div className="w-10 h-10 rounded-xl bg-violet-100 text-violet-600 flex items-center justify-center mb-3">
+            <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg sm:rounded-xl bg-violet-100 text-violet-600 flex items-center justify-center mb-2 sm:mb-3">
 
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="w-5 h-5">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="w-4 h-4 sm:w-5 sm:h-5">
                 <rect x="4" y="4" width="12" height="12" rx="2" />
                 <path d="M8 16v2a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2v-8a2 2 0 0 0-2-2h-2" />
               </svg>
@@ -1493,19 +1493,19 @@ export default function Home() {
             </div>
 
             <p className="text-xs text-zinc-500">Unique Products</p>
-            <p className="text-2xl font-bold tracking-tight mt-1 tabular-nums text-zinc-900">{uniqueProductGroupCount}</p>
-            <p className="text-xs text-zinc-400 mt-0.5">{products.length} variants total (by name, brand &amp; category)</p>
+            <p className="text-lg sm:text-2xl font-bold tracking-tight mt-0.5 sm:mt-1 tabular-nums text-zinc-900">{uniqueProductGroupCount}</p>
+            <p className="hidden sm:block text-xs text-zinc-400 mt-0.5">{products.length} variants total (by name, brand &amp; category)</p>
 
           </div>
 
           <button
             onClick={() => router.push('/low-stock')}
-            className="bg-white rounded-2xl shadow-sm border border-zinc-200 p-5 text-left hover:bg-zinc-50 transition-colors"
+            className="bg-white rounded-xl sm:rounded-2xl shadow-sm border border-zinc-200 p-3 sm:p-5 text-left hover:bg-zinc-50 transition-colors"
           >
 
-            <div className="w-10 h-10 rounded-xl bg-amber-100 text-amber-600 flex items-center justify-center mb-3">
+            <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg sm:rounded-xl bg-amber-100 text-amber-600 flex items-center justify-center mb-2 sm:mb-3">
 
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="w-5 h-5">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="w-4 h-4 sm:w-5 sm:h-5">
                 <path d="M12 9v4" strokeLinecap="round" />
                 <path d="M12 17h.01" strokeLinecap="round" />
                 <path d="M10.3 3.9L2.5 18a1 1 0 0 0 .9 1.5h17.2a1 1 0 0 0 .9-1.5L13.7 3.9a1 1 0 0 0-1.8 0z" strokeLinejoin="round" />
@@ -1514,18 +1514,18 @@ export default function Home() {
             </div>
 
             <p className="text-xs text-zinc-500">Low Stock Items</p>
-            <p className="text-2xl font-bold tracking-tight mt-1 tabular-nums text-amber-600">{lowStockCount}</p>
+            <p className="text-lg sm:text-2xl font-bold tracking-tight mt-0.5 sm:mt-1 tabular-nums text-amber-600">{lowStockCount}</p>
 
           </button>
 
           <button
             onClick={() => router.push('/low-stock')}
-            className="bg-white rounded-2xl shadow-sm border border-zinc-200 p-5 text-left hover:bg-zinc-50 transition-colors"
+            className="bg-white rounded-xl sm:rounded-2xl shadow-sm border border-zinc-200 p-3 sm:p-5 text-left hover:bg-zinc-50 transition-colors"
           >
 
-            <div className="w-10 h-10 rounded-xl bg-red-100 text-red-600 flex items-center justify-center mb-3">
+            <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg sm:rounded-xl bg-red-100 text-red-600 flex items-center justify-center mb-2 sm:mb-3">
 
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="w-5 h-5">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="w-4 h-4 sm:w-5 sm:h-5">
                 <circle cx="12" cy="12" r="9" />
                 <path d="M9 9l6 6M15 9l-6 6" strokeLinecap="round" />
               </svg>
@@ -1533,7 +1533,7 @@ export default function Home() {
             </div>
 
             <p className="text-xs text-zinc-500">Out of Stock Items</p>
-            <p className="text-2xl font-bold tracking-tight mt-1 tabular-nums text-red-600">{outOfStockCount}</p>
+            <p className="text-lg sm:text-2xl font-bold tracking-tight mt-0.5 sm:mt-1 tabular-nums text-red-600">{outOfStockCount}</p>
 
           </button>
 
@@ -1541,12 +1541,12 @@ export default function Home() {
 
           <button
             onClick={() => setScannerFullScreen(true)}
-            className="bg-white rounded-2xl shadow-sm border border-zinc-200 p-5 text-left hover:bg-zinc-50 transition-colors"
+            className="bg-white rounded-xl sm:rounded-2xl shadow-sm border border-zinc-200 p-3 sm:p-5 text-left hover:bg-zinc-50 transition-colors"
           >
 
-            <div className="w-10 h-10 rounded-xl bg-blue-100 text-blue-600 flex items-center justify-center mb-3">
+            <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg sm:rounded-xl bg-blue-100 text-blue-600 flex items-center justify-center mb-2 sm:mb-3">
 
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="w-5 h-5">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="w-4 h-4 sm:w-5 sm:h-5">
                 <path d="M3 5v14M7 5v14M10 5v14M14 5v10M17 5v14M21 5v14" />
               </svg>
 
@@ -2480,33 +2480,17 @@ export default function Home() {
 
           {mode === 'ADD' && oldStockModeActive && (
 
-            <div className="mt-6 border-2 border-indigo-200 rounded-2xl p-6 bg-indigo-50/40 flex items-center justify-between flex-wrap gap-3">
+            <div className="mt-6 border-2 border-indigo-200 rounded-2xl px-6 py-4 bg-indigo-50/40 flex items-center justify-between gap-3">
 
-              <div>
+              <p className="font-bold text-zinc-900">
 
-                <p className="text-sm text-zinc-500">
+                Adding Old Stock
 
-                  Adding Old Stock
-
-                </p>
-
-                <p className="font-bold text-lg text-zinc-900">
-
-                  Scan a barcode to update its stock instantly
-
-                </p>
-
-                <p className="text-xs text-zinc-400 mt-1">
-
-                  {oldStockAddedCount} product{oldStockAddedCount === 1 ? '' : 's'} updated so far — not logged in Stock Log or Lifetime Purchase.
-
-                </p>
-
-              </div>
+              </p>
 
               <button
                 onClick={stopOldStockMode}
-                className="bg-gray-200 hover:bg-gray-300 transition-colors px-6 py-3 rounded-xl font-bold"
+                className="bg-gray-200 hover:bg-gray-300 transition-colors px-6 py-3 rounded-xl font-bold flex-shrink-0"
               >
 
                 Stop
@@ -2582,7 +2566,7 @@ export default function Home() {
 
             <button
               onClick={exportToExcel}
-              className="bg-gradient-to-r from-emerald-500 to-green-600 hover:from-emerald-600 hover:to-green-700 transition-all text-white px-5 py-3 rounded-2xl font-bold self-start lg:self-auto shadow-lg shadow-green-200 flex items-center gap-2"
+              className="inline-flex items-center gap-1.5 border border-zinc-300 text-zinc-600 hover:bg-zinc-50 hover:border-zinc-400 transition-colors px-3 py-1.5 rounded-lg text-xs font-medium self-start lg:self-auto"
             >
 
               <svg
@@ -2591,16 +2575,16 @@ export default function Home() {
                 fill="none"
                 stroke="currentColor"
                 strokeWidth="2"
-                className="w-4 h-4"
+                className="w-3.5 h-3.5"
               >
 
-                <path d="M12 3v12" strokeLinecap="round" />
-                <path d="M7 10l5 5 5-5" strokeLinecap="round" strokeLinejoin="round" />
-                <path d="M4 19h16" strokeLinecap="round" />
+                <path d="M12 3v9" strokeLinecap="round" />
+                <path d="M8 8l4 4 4-4" strokeLinecap="round" strokeLinejoin="round" />
+                <path d="M4 17h16" strokeLinecap="round" />
 
               </svg>
 
-              Export Excel
+              Export
 
             </button>
 
@@ -2713,7 +2697,7 @@ export default function Home() {
                           setExpandedGroups((prev) => ({ ...prev, [group.key]: prev[group.key] === false }))
                         }
                       }}
-                      className="w-full flex items-center gap-4 px-5 py-4 hover:bg-indigo-50/40 transition-colors text-left cursor-pointer"
+                      className="w-full flex items-center gap-2 sm:gap-4 px-3 sm:px-5 py-4 hover:bg-indigo-50/40 transition-colors text-left cursor-pointer"
                     >
 
                       {group.image ? (
@@ -2721,12 +2705,12 @@ export default function Home() {
                         <img
                           src={group.image}
                           alt=""
-                          className="w-12 h-12 rounded-lg object-cover border border-zinc-200 flex-shrink-0"
+                          className="w-10 h-10 sm:w-12 sm:h-12 rounded-lg object-cover border border-zinc-200 flex-shrink-0"
                         />
 
                       ) : (
 
-                        <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-indigo-100 to-fuchsia-100 border border-zinc-200 flex items-center justify-center text-indigo-300 flex-shrink-0">
+                        <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-lg bg-gradient-to-br from-indigo-100 to-fuchsia-100 border border-zinc-200 flex items-center justify-center text-indigo-300 flex-shrink-0">
 
                           <svg
                             xmlns="http://www.w3.org/2000/svg"
@@ -2751,7 +2735,7 @@ export default function Home() {
 
                       <div className="flex-1 min-w-0">
 
-                        <p className="font-semibold text-zinc-900 truncate">{group.productName}</p>
+                        <p className="font-semibold text-sm sm:text-base text-zinc-900 leading-snug sm:truncate">{group.productName}</p>
 
                         <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
 
@@ -2799,7 +2783,7 @@ export default function Home() {
                             openBulkPrice(group)
                           }}
                           title="Set MRP & Cost for all shades"
-                          className="flex items-center gap-1.5 bg-white border border-zinc-200 hover:border-indigo-300 hover:bg-indigo-50 text-zinc-600 hover:text-indigo-600 transition-colors px-3 py-2 rounded-xl text-xs font-semibold flex-shrink-0"
+                          className="flex items-center gap-1.5 bg-white border border-zinc-200 hover:border-indigo-300 hover:bg-indigo-50 text-zinc-600 hover:text-indigo-600 transition-colors px-2 sm:px-3 py-2 rounded-xl text-xs font-semibold flex-shrink-0"
                         >
 
                           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="w-3.5 h-3.5">
