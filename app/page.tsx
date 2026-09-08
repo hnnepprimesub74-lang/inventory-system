@@ -536,8 +536,6 @@ export default function Home() {
 
     if (!qty || qty <= 0) {
 
-      alert('Enter a quantity greater than 0')
-
       return
 
     }

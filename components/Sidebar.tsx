@@ -149,6 +149,7 @@ const NAV_SECTIONS = [
     items: [
       { label: 'Home', href: '/', icon: 'home', isActive: (p: string) => p === '/' },
       { label: 'Stock Log', href: '/stock-log', icon: 'box', isActive: (p: string) => p === '/stock-log' },
+      { label: 'Daily Sales', href: '/daily-sales', icon: 'chart', isActive: (p: string) => p === '/daily-sales' },
       { label: 'Low Stock', href: '/low-stock', icon: 'alert', isActive: (p: string) => p === '/low-stock' },
       { label: 'Most Selling', href: '/most-selling', icon: 'trending', isActive: (p: string) => p === '/most-selling' },
     ],
@@ -228,7 +229,7 @@ const NAV_SECTIONS = [
   },
 ]
 
-const WORKER_ALLOWED_HREFS = ['/', '/stock-log', '/low-stock', '/most-selling']
+const WORKER_ALLOWED_HREFS = ['/', '/stock-log', '/daily-sales', '/low-stock', '/most-selling']
 
 export default function Sidebar({
   userEmail,
