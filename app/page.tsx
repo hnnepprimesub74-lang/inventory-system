@@ -471,6 +471,22 @@ export default function Home() {
       })
       .eq('id', product.id)
 
+    await supabase
+      .from('stock_transactions')
+      .insert([
+        {
+
+          product_id: product.id,
+
+          user_email: userEmail,
+
+          transaction_type: 'RETURN',
+
+          quantity: 1,
+
+        },
+      ])
+
     fetchProducts()
 
   }
@@ -989,6 +1005,10 @@ export default function Home() {
     if (mode === 'RETURN') {
 
       await processReturn(product)
+
+      showScanMessage(
+        `${product.product_name} returned`
+      )
 
       setScanBarcode('')
 

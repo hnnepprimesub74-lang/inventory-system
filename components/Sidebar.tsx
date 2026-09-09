@@ -83,6 +83,14 @@ function Icon({ name }: { name: string }) {
         </svg>
       )
 
+    case 'returnLog':
+      return (
+        <svg {...common}>
+          <path d="M3 12a9 9 0 1 0 3-6.7" strokeLinecap="round" strokeLinejoin="round" />
+          <path d="M3 4v4h4" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      )
+
     case 'building':
       return (
         <svg {...common}>
@@ -150,6 +158,7 @@ const NAV_SECTIONS = [
       { label: 'Home', href: '/', icon: 'home', isActive: (p: string) => p === '/' },
       { label: 'Stock Log', href: '/stock-log', icon: 'box', isActive: (p: string) => p === '/stock-log' },
       { label: 'Daily Sales', href: '/daily-sales', icon: 'chart', isActive: (p: string) => p === '/daily-sales' },
+      { label: 'Return Log', href: '/return-log', icon: 'returnLog', isActive: (p: string) => p === '/return-log' },
       { label: 'Low Stock', href: '/low-stock', icon: 'alert', isActive: (p: string) => p === '/low-stock' },
       { label: 'Most Selling', href: '/most-selling', icon: 'trending', isActive: (p: string) => p === '/most-selling' },
     ],
@@ -229,7 +238,7 @@ const NAV_SECTIONS = [
   },
 ]
 
-const WORKER_ALLOWED_HREFS = ['/', '/stock-log', '/daily-sales', '/low-stock', '/most-selling']
+const WORKER_ALLOWED_HREFS = ['/', '/stock-log', '/daily-sales', '/return-log', '/low-stock', '/most-selling']
 
 export default function Sidebar({
   userEmail,
