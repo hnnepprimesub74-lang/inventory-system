@@ -27,6 +27,11 @@ export default function Home() {
 
   const messageTimeoutRef = useRef<any>(null)
 
+  // Guards against a single physical scan firing the Enter handler twice
+  // (some barcode scanners send Enter/CR+LF as two separate keystrokes),
+  // which previously double-processed sales/returns.
+  const scanLockRef = useRef(false)
+
   const [deleteProductId,
     setDeleteProductId] =
     useState<any>(null)
@@ -891,6 +896,26 @@ export default function Home() {
   }
 
   async function handleBarcodeScan(
+    code: string
+  ) {
+
+    if (scanLockRef.current) return
+
+    scanLockRef.current = true
+
+    try {
+
+      await handleBarcodeScanInner(code)
+
+    } finally {
+
+      scanLockRef.current = false
+
+    }
+
+  }
+
+  async function handleBarcodeScanInner(
     code: string
   ) {
 

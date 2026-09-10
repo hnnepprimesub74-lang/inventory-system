@@ -68,6 +68,7 @@ export default function FinanceReportPage() {
   const [allStockTxns, setAllStockTxns] = useState<any[]>([])
   const [cashSources, setCashSources] = useState<any[]>([])
   const [loanPayments, setLoanPayments] = useState<any[]>([])
+  const [loanBorrowings, setLoanBorrowings] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
 
   const [reportMonth, setReportMonth] = useState(currentMonth())
@@ -118,6 +119,7 @@ export default function FinanceReportPage() {
       { data: paymentData },
       { data: sourceData },
       { data: loanPaymentData },
+      { data: loanBorrowingData },
     ] = await Promise.all([
       supabase.from('daraz_cashouts').select('*'),
       supabase.from('rent_payments').select('*'),
@@ -133,6 +135,7 @@ export default function FinanceReportPage() {
       supabase.from('payments').select('*'),
       supabase.from('cash_sources').select('*').order('name'),
       supabase.from('loan_payments').select('*'),
+      supabase.from('loan_borrowings').select('*'),
     ])
 
     setDarazCashouts(darazData || [])
@@ -149,6 +152,7 @@ export default function FinanceReportPage() {
     setSupplierPayments(paymentData || [])
     setCashSources(sourceData || [])
     setLoanPayments(loanPaymentData || [])
+    setLoanBorrowings(loanBorrowingData || [])
 
     setLoading(false)
 
@@ -312,6 +316,7 @@ export default function FinanceReportPage() {
     { rows: refunds, dateField: 'refund_date' },
     { rows: supplierPayments, dateField: 'payment_date' },
     { rows: adminSalary, dateField: 'paid_date' },
+    { rows: loanBorrowings, dateField: 'borrow_date' },
   ]
 
   const loanStatus = cashSources

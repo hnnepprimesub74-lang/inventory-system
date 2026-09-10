@@ -214,6 +214,18 @@ const MonthlyReportPrint = forwardRef<HTMLDivElement, MonthlyReportPrintProps>(f
 
               </tbody>
 
+              <tfoot>
+                <tr className="border-t-2 border-zinc-300 font-bold text-zinc-900">
+                  <td className="py-2 pr-3">Total</td>
+                  <td className="py-2 px-3 text-right tabular-nums">{rs(storeWeeklyEarnings.reduce((s, r) => s + r.weeks[1], 0))}</td>
+                  <td className="py-2 px-3 text-right tabular-nums">{rs(storeWeeklyEarnings.reduce((s, r) => s + r.weeks[2], 0))}</td>
+                  <td className="py-2 px-3 text-right tabular-nums">{rs(storeWeeklyEarnings.reduce((s, r) => s + r.weeks[3], 0))}</td>
+                  <td className="py-2 px-3 text-right tabular-nums">{rs(storeWeeklyEarnings.reduce((s, r) => s + r.weeks[4], 0))}</td>
+                  <td className="py-2 px-3 text-right tabular-nums">{rs(storeWeeklyEarnings.reduce((s, r) => s + r.weeks[5], 0))}</td>
+                  <td className="py-2 pl-3 text-right tabular-nums">{rs(storeWeeklyEarnings.reduce((s, r) => s + r.total, 0))}</td>
+                </tr>
+              </tfoot>
+
             </table>
 
           )}
@@ -258,6 +270,17 @@ const MonthlyReportPrint = forwardRef<HTMLDivElement, MonthlyReportPrintProps>(f
 
                 </tbody>
 
+                <tfoot>
+                  <tr className="border-t-2 border-zinc-300 font-bold text-zinc-900">
+                    <td className="py-2 pr-2">Total</td>
+                    <td className="py-2 px-2 text-right tabular-nums">{rs(supplierStatus.reduce((s, r) => s + r.purchased, 0))}</td>
+                    <td className="py-2 px-2 text-right tabular-nums text-green-700">{rs(supplierStatus.reduce((s, r) => s + r.paid, 0))}</td>
+                    <td className={`py-2 pl-2 text-right tabular-nums ${supplierStatus.reduce((s, r) => s + r.pending, 0) > 0 ? 'text-red-700' : 'text-green-700'}`}>
+                      {rs(supplierStatus.reduce((s, r) => s + r.pending, 0))}
+                    </td>
+                  </tr>
+                </tfoot>
+
               </table>
 
             )}
@@ -299,6 +322,17 @@ const MonthlyReportPrint = forwardRef<HTMLDivElement, MonthlyReportPrintProps>(f
                   ))}
 
                 </tbody>
+
+                <tfoot>
+                  <tr className="border-t-2 border-zinc-300 font-bold text-zinc-900">
+                    <td className="py-2 pr-2">Total</td>
+                    <td className="py-2 px-2 text-right tabular-nums">{rs(loanStatus.reduce((s, r) => s + r.borrowed, 0))}</td>
+                    <td className="py-2 px-2 text-right tabular-nums text-green-700">{rs(loanStatus.reduce((s, r) => s + r.cleared, 0))}</td>
+                    <td className={`py-2 pl-2 text-right tabular-nums ${loanStatus.reduce((s, r) => s + r.outstanding, 0) > 0 ? 'text-amber-700' : 'text-green-700'}`}>
+                      {rs(loanStatus.reduce((s, r) => s + r.outstanding, 0))}
+                    </td>
+                  </tr>
+                </tfoot>
 
               </table>
 
