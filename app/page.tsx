@@ -25,7 +25,7 @@ export default function Home() {
 
   const scanInputRef = useRef<any>(null)
 
-  const messageTimeoutRef = useRef<any>(null)
+  const messageIdRef = useRef(0)
 
   // Guards against a single physical scan firing the Enter handler twice
   // (some barcode scanners send Enter/CR+LF as two separate keystrokes),
@@ -43,19 +43,19 @@ export default function Home() {
     setUserEmail] =
     useState('')
 
-  const [message, setMessage] = useState('')
+  const [messages, setMessages] = useState<{ id: number; text: string }[]>([])
 
   function showScanMessage(text: string) {
 
-    if (messageTimeoutRef.current) {
-      clearTimeout(messageTimeoutRef.current)
-    }
+    const id = ++messageIdRef.current
 
-    setMessage(text)
+    setMessages((prev) => [{ id, text }, ...prev].slice(0, 2))
 
-    messageTimeoutRef.current = setTimeout(() => {
-      setMessage('')
-    }, 4000)
+  }
+
+  function dismissScanMessage(id: number) {
+
+    setMessages((prev) => prev.filter((m) => m.id !== id))
 
   }
 
@@ -1018,7 +1018,7 @@ export default function Home() {
       fetchProducts()
 
       showScanMessage(
-        `${product.product_name} sold`
+        `${product.product_name}${product.shade ? ' - ' + product.shade : ''} sold`
       )
 
       setScanBarcode('')
@@ -1032,7 +1032,7 @@ export default function Home() {
       await processReturn(product)
 
       showScanMessage(
-        `${product.product_name} returned`
+        `${product.product_name}${product.shade ? ' - ' + product.shade : ''} returned`
       )
 
       setScanBarcode('')
@@ -1763,9 +1763,34 @@ export default function Home() {
 
           </div>
 
-          {message && (
-            <div className="mb-3 bg-green-600 text-white text-center font-bold py-3 rounded-xl">
-              {message}
+          {messages.length > 0 && (
+            <div className="mb-3 space-y-2">
+
+              {messages.map((m) => (
+
+                <div
+                  key={m.id}
+                  className="flex items-center gap-3 bg-green-600 text-white font-bold py-3 pl-4 pr-3 rounded-xl"
+                >
+
+                  <span className="flex-1 text-center">{m.text}</span>
+
+                  <button
+                    onClick={() => dismissScanMessage(m.id)}
+                    aria-label="Dismiss"
+                    className="w-6 h-6 flex-shrink-0 flex items-center justify-center rounded-full bg-white/20 hover:bg-white/30 transition-colors"
+                  >
+
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="w-3.5 h-3.5">
+                      <path d="M6 6l12 12M18 6L6 18" strokeLinecap="round" />
+                    </svg>
+
+                  </button>
+
+                </div>
+
+              ))}
+
             </div>
           )}
 
