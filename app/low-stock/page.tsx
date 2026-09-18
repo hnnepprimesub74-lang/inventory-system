@@ -407,7 +407,7 @@ export default function LowStockPage() {
 
             <div className="space-y-4">
 
-              <div className="grid grid-cols-[24px_1fr_140px_140px_140px] items-center gap-4 px-4 text-xs font-semibold text-zinc-400 uppercase tracking-wide">
+              <div className="hidden sm:grid grid-cols-[24px_1fr_140px_140px_140px] items-center gap-4 px-4 text-xs font-semibold text-zinc-400 uppercase tracking-wide">
 
                 <span />
                 <span>Product / Shade</span>
@@ -427,7 +427,7 @@ export default function LowStockPage() {
 
                   <div key={g.key} className="border border-zinc-200 rounded-2xl overflow-hidden">
 
-                    <div className="flex items-center gap-3 px-4 py-3 bg-zinc-50 border-b border-zinc-200">
+                    <div className="flex items-center gap-3 px-4 py-3 bg-zinc-50 border-b border-zinc-200 flex-wrap">
 
                       <GroupCheckbox
                         checked={groupAllSelected}
@@ -481,33 +481,52 @@ export default function LowStockPage() {
 
                           <label
                             key={p.id}
-                            className="grid grid-cols-[24px_1fr_140px_140px_140px] items-center gap-4 px-4 py-3.5 hover:bg-zinc-50 cursor-pointer"
+                            className="flex flex-wrap sm:grid sm:grid-cols-[24px_1fr_140px_140px_140px] items-center gap-x-4 gap-y-2 px-4 py-3.5 hover:bg-zinc-50 cursor-pointer"
                           >
 
-                            <input
-                              type="checkbox"
-                              checked={!!selected[p.id]}
-                              onChange={() => toggleVariant(p.id)}
-                              className="w-4 h-4 rounded border-zinc-300 text-zinc-900 focus:ring-zinc-500 cursor-pointer"
-                            />
+                            <div className="flex items-center gap-3 basis-full sm:contents">
 
-                            <span className="min-w-0 text-sm text-zinc-700 truncate">
-                              {p.shade || '—'}
+                              <input
+                                type="checkbox"
+                                checked={!!selected[p.id]}
+                                onChange={() => toggleVariant(p.id)}
+                                className="w-4 h-4 rounded border-zinc-300 text-zinc-900 focus:ring-zinc-500 cursor-pointer flex-shrink-0"
+                              />
+
+                              <span className="min-w-0 flex-1 text-sm text-zinc-700 truncate">
+                                {p.shade || '—'}
+                              </span>
+
+                            </div>
+
+                            <span className="flex items-center justify-end gap-1.5 sm:justify-self-end">
+
+                              <span className="sm:hidden text-xs text-zinc-400 font-medium">Stock</span>
+
+                              <span
+                                className={
+                                  outOfStock
+                                    ? 'bg-red-100 text-red-700 tabular-nums font-extrabold text-sm sm:text-base px-2.5 py-1 rounded-lg'
+                                    : 'bg-amber-100 text-amber-700 tabular-nums font-extrabold text-sm sm:text-base px-2.5 py-1 rounded-lg'
+                                }
+                              >
+
+                                {p.current_stock}
+
+                              </span>
+
                             </span>
 
-                            <span className={`text-base tabular-nums font-bold text-right ${outOfStock ? 'text-red-600' : 'text-amber-600'}`}>
-                              {p.current_stock}
-                            </span>
-
-                            <span className="text-base tabular-nums font-semibold text-zinc-500 text-right">
+                            <span className="text-sm sm:text-base tabular-nums font-semibold text-zinc-500 text-right">
+                              <span className="sm:hidden text-zinc-400 font-medium mr-1">Reorder</span>
                               {Math.ceil(p.reorderPoint)}
                             </span>
 
                             <span
                               className={
                                 outOfStock
-                                  ? 'bg-red-100 text-red-700 px-3 py-1.5 rounded-full text-xs font-semibold text-center justify-self-center'
-                                  : 'bg-amber-100 text-amber-700 px-3 py-1.5 rounded-full text-xs font-semibold text-center justify-self-center'
+                                  ? 'bg-red-100 text-red-700 px-3 py-1.5 rounded-full text-xs font-semibold text-center sm:justify-self-center'
+                                  : 'bg-amber-100 text-amber-700 px-3 py-1.5 rounded-full text-xs font-semibold text-center sm:justify-self-center'
                               }
                             >
 
@@ -556,35 +575,50 @@ export default function LowStockPage() {
 
                               const badgeLabel = otherOut ? 'Out of Stock' : otherLow ? 'Low Stock' : 'In Stock'
 
-                              const stockClass = otherOut ? 'text-red-600' : otherLow ? 'text-amber-600' : 'text-zinc-500'
+                              const stockPillClass = otherOut
+                                ? 'bg-red-100 text-red-700'
+                                : otherLow
+                                ? 'bg-amber-100 text-amber-700'
+                                : 'bg-zinc-100 text-zinc-500'
 
                               return (
 
                                 <label
                                   key={p.id}
-                                  className="grid grid-cols-[24px_1fr_140px_140px_140px] items-center gap-4 px-4 py-3.5 hover:bg-zinc-50 cursor-pointer bg-zinc-50/50"
+                                  className="flex flex-wrap sm:grid sm:grid-cols-[24px_1fr_140px_140px_140px] items-center gap-x-4 gap-y-2 px-4 py-3.5 hover:bg-zinc-50 cursor-pointer bg-zinc-50/50"
                                 >
 
-                                  <input
-                                    type="checkbox"
-                                    checked={!!selected[p.id]}
-                                    onChange={() => toggleVariant(p.id)}
-                                    className="w-4 h-4 rounded border-zinc-300 text-zinc-900 focus:ring-zinc-500 cursor-pointer"
-                                  />
+                                  <div className="flex items-center gap-3 basis-full sm:contents">
 
-                                  <span className="min-w-0 text-sm text-zinc-500 truncate">
-                                    {p.shade || '—'}
+                                    <input
+                                      type="checkbox"
+                                      checked={!!selected[p.id]}
+                                      onChange={() => toggleVariant(p.id)}
+                                      className="w-4 h-4 rounded border-zinc-300 text-zinc-900 focus:ring-zinc-500 cursor-pointer flex-shrink-0"
+                                    />
+
+                                    <span className="min-w-0 flex-1 text-sm text-zinc-500 truncate">
+                                      {p.shade || '—'}
+                                    </span>
+
+                                  </div>
+
+                                  <span className="flex items-center justify-end gap-1.5 sm:justify-self-end">
+
+                                    <span className="sm:hidden text-xs text-zinc-400 font-medium">Stock</span>
+
+                                    <span className={`${stockPillClass} tabular-nums font-extrabold text-sm sm:text-base px-2.5 py-1 rounded-lg`}>
+                                      {p.current_stock}
+                                    </span>
+
                                   </span>
 
-                                  <span className={`text-base tabular-nums font-bold text-right ${stockClass}`}>
-                                    {p.current_stock}
-                                  </span>
-
-                                  <span className="text-base tabular-nums font-semibold text-zinc-400 text-right">
+                                  <span className="text-sm sm:text-base tabular-nums font-semibold text-zinc-400 text-right">
+                                    <span className="sm:hidden font-medium mr-1">Reorder</span>
                                     {Math.ceil(p.reorderPoint)}
                                   </span>
 
-                                  <span className={`${badgeClass} px-3 py-1.5 rounded-full text-xs font-semibold text-center justify-self-center`}>
+                                  <span className={`${badgeClass} px-3 py-1.5 rounded-full text-xs font-semibold text-center sm:justify-self-center`}>
                                     {badgeLabel}
                                   </span>
 
