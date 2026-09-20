@@ -194,7 +194,10 @@ export default function FinanceReportPage() {
     const supplierPayment = supplierPaymentByMonth[month] || 0
     const loanPayment = loanPaymentByMonth[month] || 0
 
-    const totalExpense = rent + staff + admin + operating + misc + refund + supplierPayment + loanPayment
+    // Loan repayment is a financing/cash-flow event, not a new expense: the money it repays was
+    // already counted as an expense when it was originally spent (via whichever category/source
+    // funded it), so it must not be added again here.
+    const totalExpense = rent + staff + admin + operating + misc + refund + supplierPayment
     const netProfit = income - totalExpense
 
     return { month, income, rent, staff, admin, operating, misc, refund, supplierPayment, loanPayment, totalExpense, netProfit }
@@ -224,7 +227,6 @@ export default function FinanceReportPage() {
     { label: 'Misc Expenses', value: lifetimeMisc, color: '#EC4899' },
     { label: 'Refunds', value: lifetimeRefund, color: '#EF4444' },
     { label: 'Supplier Payment', value: lifetimeSupplierPayment, color: '#18181B' },
-    { label: 'Loan Payment', value: lifetimeLoanPayment, color: '#0891B2' },
   ]
 
   // ---- Monthly Report (PDF) data ----
@@ -253,7 +255,6 @@ export default function FinanceReportPage() {
     { label: 'Misc Expenses', value: reportRow.misc, color: '#EC4899' },
     { label: 'Refunds', value: reportRow.refund, color: '#EF4444' },
     { label: 'Supplier Payment', value: reportRow.supplierPayment, color: '#18181B' },
-    { label: 'Loan Payment', value: reportRow.loanPayment, color: '#0891B2' },
   ]
 
   const cashoutsForMonth = darazCashouts.filter(
