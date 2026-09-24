@@ -5,7 +5,7 @@ import PieChart from './PieChart'
 
 type ExpenseSlice = { label: string; value: number; color: string }
 type StoreWeek = { storeName: string; weeks: Record<number, number>; total: number }
-type SupplierRow = { name: string; purchased: number; paid: number; pending: number }
+type SupplierRow = { name: string; opening: number; purchased: number; paid: number; pending: number }
 type LoanRow = { name: string; borrowed: number; cleared: number; outstanding: number }
 type TopProduct = { name: string; qty: number; revenue: number }
 
@@ -236,7 +236,8 @@ const MonthlyReportPrint = forwardRef<HTMLDivElement, MonthlyReportPrintProps>(f
 
           <div className="rounded-2xl border border-zinc-200 p-5">
 
-            <h3 className="font-bold text-zinc-900 mb-4">Supplier Payment Status</h3>
+            <h3 className="font-bold text-zinc-900">Supplier Payment Status</h3>
+            <p className="text-xs text-zinc-400 mb-4">Pending = Old Pending + Purchased − Paid</p>
 
             {supplierStatus.length === 0 ? (
 
@@ -249,6 +250,7 @@ const MonthlyReportPrint = forwardRef<HTMLDivElement, MonthlyReportPrintProps>(f
                 <thead>
                   <tr className="text-left border-b border-zinc-200">
                     <th className="py-2 pr-2 font-semibold text-zinc-500">Supplier</th>
+                    <th className="py-2 px-2 font-semibold text-zinc-500 text-right">Old Pending</th>
                     <th className="py-2 px-2 font-semibold text-zinc-500 text-right">Purchased</th>
                     <th className="py-2 px-2 font-semibold text-zinc-500 text-right">Paid</th>
                     <th className="py-2 pl-2 font-semibold text-zinc-500 text-right">Pending</th>
@@ -261,6 +263,7 @@ const MonthlyReportPrint = forwardRef<HTMLDivElement, MonthlyReportPrintProps>(f
 
                     <tr key={s.name}>
                       <td className="py-2 pr-2 font-semibold text-zinc-900">{s.name}</td>
+                      <td className="py-2 px-2 text-right tabular-nums text-zinc-600">{rs(s.opening)}</td>
                       <td className="py-2 px-2 text-right tabular-nums text-zinc-600">{rs(s.purchased)}</td>
                       <td className="py-2 px-2 text-right tabular-nums text-green-700">{rs(s.paid)}</td>
                       <td className={`py-2 pl-2 text-right tabular-nums font-bold ${s.pending > 0 ? 'text-red-700' : 'text-green-700'}`}>{rs(s.pending)}</td>
@@ -273,6 +276,7 @@ const MonthlyReportPrint = forwardRef<HTMLDivElement, MonthlyReportPrintProps>(f
                 <tfoot>
                   <tr className="border-t-2 border-zinc-300 font-bold text-zinc-900">
                     <td className="py-2 pr-2">Total</td>
+                    <td className="py-2 px-2 text-right tabular-nums">{rs(supplierStatus.reduce((s, r) => s + r.opening, 0))}</td>
                     <td className="py-2 px-2 text-right tabular-nums">{rs(supplierStatus.reduce((s, r) => s + r.purchased, 0))}</td>
                     <td className="py-2 px-2 text-right tabular-nums text-green-700">{rs(supplierStatus.reduce((s, r) => s + r.paid, 0))}</td>
                     <td className={`py-2 pl-2 text-right tabular-nums ${supplierStatus.reduce((s, r) => s + r.pending, 0) > 0 ? 'text-red-700' : 'text-green-700'}`}>

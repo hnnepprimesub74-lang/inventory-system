@@ -112,7 +112,8 @@ export default function FinanceReportPage() {
       { data: opExData },
       { data: miscExData },
       { data: refundData },
-      { data: stockTxnData },
+      { data: stockAddData },
+      { data: stockSellData },
       { data: storeData },
       { data: productData },
       { data: supplierData },
@@ -128,7 +129,8 @@ export default function FinanceReportPage() {
       supabase.from('operating_expenses').select('*'),
       supabase.from('misc_expenses').select('*'),
       supabase.from('refunds').select('*'),
-      supabase.from('stock_transactions').select('*'),
+      supabase.from('stock_transactions').select('*').eq('transaction_type', 'ADD'),
+      supabase.from('stock_transactions').select('*').eq('transaction_type', 'SELL'),
       supabase.from('daraz_stores').select('*').order('name'),
       supabase.from('products').select('*'),
       supabase.from('suppliers').select('*').order('name'),
@@ -145,7 +147,7 @@ export default function FinanceReportPage() {
     setOperatingExpenses(opExData || [])
     setMiscExpenses(miscExData || [])
     setRefunds(refundData || [])
-    setAllStockTxns(stockTxnData || [])
+    setAllStockTxns([...(stockAddData || []), ...(stockSellData || [])])
     setDarazStores(storeData || [])
     setProducts(productData || [])
     setSuppliers(supplierData || [])
@@ -301,9 +303,10 @@ export default function FinanceReportPage() {
       .filter((p) => p.supplier_id === s.id)
       .reduce((sum, p) => sum + Number(p.amount || 0), 0)
 
-    const pending = Number(s.opening_balance || 0) + purchased - paid
+    const opening = Number(s.opening_balance || 0)
+    const pending = opening + purchased - paid
 
-    return { name: s.name, purchased, paid, pending }
+    return { name: s.name, opening, purchased, paid, pending }
 
   })
 
