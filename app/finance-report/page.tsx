@@ -170,8 +170,42 @@ export default function FinanceReportPage() {
   const supplierPaymentByMonth = sumByMonth(supplierPayments, 'payment_date', 'amount')
   const loanPaymentByMonth = sumByMonth(loanPayments, 'payment_date', 'amount')
 
+  const darazSourceId = cashSources.find((s) => s.name === 'Daraz')?.id
+
+  // Anything spent from a non-Daraz source (plus explicit loan_borrowings) is money borrowed,
+  // dated the same month as the spend so cash in and cash out land together.
+  const loanInSources = [
+    { rows: rentPayments, dateField: 'month' },
+    { rows: staffSalary, dateField: 'month' },
+    { rows: adminSalary, dateField: 'month' },
+    { rows: operatingExpenses, dateField: 'expense_date' },
+    { rows: miscExpenses, dateField: 'expense_date' },
+    { rows: refunds, dateField: 'refund_date' },
+    { rows: supplierPayments, dateField: 'payment_date' },
+    { rows: loanBorrowings, dateField: 'borrow_date' },
+  ]
+
+  const loanInByMonth: Record<string, number> = {}
+
+  loanInSources.forEach((t) => {
+
+    t.rows
+      .filter((r: any) => r.source_id && r.source_id !== darazSourceId)
+      .forEach((r: any) => {
+
+        const month = (r[t.dateField] || '').slice(0, 7)
+
+        if (!month) return
+
+        loanInByMonth[month] = (loanInByMonth[month] || 0) + Number(r.amount || 0)
+
+      })
+
+  })
+
   const allMonths = Array.from(
     new Set([
+      ...Object.keys(loanInByMonth),
       ...Object.keys(incomeByMonth),
       ...Object.keys(rentByMonth),
       ...Object.keys(staffByMonth),
@@ -196,21 +230,23 @@ export default function FinanceReportPage() {
     const supplierPayment = supplierPaymentByMonth[month] || 0
     const loanPayment = loanPaymentByMonth[month] || 0
 
-    // Loan repayment is a financing/cash-flow event, not a new expense: the money it repays was
-    // already counted as an expense when it was originally spent (via whichever category/source
-    // funded it), so it must not be added again here.
-    const totalExpense = rent + staff + admin + operating + misc + refund + supplierPayment
-    const netProfit = income - totalExpense
+    const loanIn = loanInByMonth[month] || 0
 
-    return { month, income, rent, staff, admin, operating, misc, refund, supplierPayment, loanPayment, totalExpense, netProfit }
+    const totalCashIn = income + loanIn
+    const totalExpense = rent + staff + admin + operating + misc + refund + supplierPayment + loanPayment
+    const balance = totalCashIn - totalExpense
+
+    return { month, income, loanIn, totalCashIn, rent, staff, admin, operating, misc, refund, supplierPayment, loanPayment, totalExpense, balance }
 
   })
 
   const monthlyRowsDesc = [...monthlyRows].sort((a, b) => b.month.localeCompare(a.month))
 
-  const lifetimeIncome = monthlyRows.reduce((s, r) => s + r.income, 0)
+  const lifetimeDarazIncome = monthlyRows.reduce((s, r) => s + r.income, 0)
+  const lifetimeLoanIn = monthlyRows.reduce((s, r) => s + r.loanIn, 0)
+  const lifetimeIncome = lifetimeDarazIncome + lifetimeLoanIn
   const lifetimeExpense = monthlyRows.reduce((s, r) => s + r.totalExpense, 0)
-  const lifetimeNetProfit = lifetimeIncome - lifetimeExpense
+  const lifetimeBalance = lifetimeIncome - lifetimeExpense
 
   const lifetimeRent = monthlyRows.reduce((s, r) => s + r.rent, 0)
   const lifetimeStaff = monthlyRows.reduce((s, r) => s + r.staff, 0)
@@ -229,6 +265,7 @@ export default function FinanceReportPage() {
     { label: 'Misc Expenses', value: lifetimeMisc, color: '#EC4899' },
     { label: 'Refunds', value: lifetimeRefund, color: '#EF4444' },
     { label: 'Supplier Payment', value: lifetimeSupplierPayment, color: '#18181B' },
+    { label: 'Loan Payment', value: lifetimeLoanPayment, color: '#0891B2' },
   ]
 
   // ---- Monthly Report (PDF) data ----
@@ -237,6 +274,8 @@ export default function FinanceReportPage() {
     monthlyRows.find((r) => r.month === reportMonth) || {
       month: reportMonth,
       income: 0,
+      loanIn: 0,
+      totalCashIn: 0,
       rent: 0,
       staff: 0,
       admin: 0,
@@ -246,7 +285,7 @@ export default function FinanceReportPage() {
       supplierPayment: 0,
       loanPayment: 0,
       totalExpense: 0,
-      netProfit: 0,
+      balance: 0,
     }
 
   const reportExpenseBreakdown = [
@@ -257,6 +296,7 @@ export default function FinanceReportPage() {
     { label: 'Misc Expenses', value: reportRow.misc, color: '#EC4899' },
     { label: 'Refunds', value: reportRow.refund, color: '#EF4444' },
     { label: 'Supplier Payment', value: reportRow.supplierPayment, color: '#18181B' },
+    { label: 'Loan Payment', value: reportRow.loanPayment, color: '#0891B2' },
   ]
 
   const cashoutsForMonth = darazCashouts.filter(
@@ -309,8 +349,6 @@ export default function FinanceReportPage() {
     return { name: s.name, opening, purchased, paid, pending }
 
   })
-
-  const darazSourceId = cashSources.find((s) => s.name === 'Daraz')?.id
 
   const loanTxnTables = [
     { rows: operatingExpenses, dateField: 'expense_date' },
@@ -375,10 +413,86 @@ export default function FinanceReportPage() {
   const chartLabels = monthlyRows.map((r) => monthLabel(r.month))
 
   const chartSeries = [
-    { label: 'Income', color: '#0F6E56', data: monthlyRows.map((r) => r.income) },
+    { label: 'Cash In (Daraz + Loan)', color: '#0F6E56', data: monthlyRows.map((r) => r.totalCashIn) },
     { label: 'Expense', color: '#A32D2D', data: monthlyRows.map((r) => r.totalExpense) },
-    { label: 'Net Profit', color: '#18181B', data: monthlyRows.map((r) => r.netProfit) },
+    { label: 'Remaining Balance', color: '#18181B', data: monthlyRows.map((r) => r.balance) },
   ]
+
+  type BreakdownKey =
+    | 'income' | 'loanIn' | 'totalCashIn' | 'rent' | 'staff' | 'admin' | 'operating'
+    | 'misc' | 'refund' | 'supplierPayment' | 'loanPayment' | 'totalExpense' | 'balance'
+
+  const breakdownGroups: { label: string; tone: string; cols: { key: BreakdownKey; label: string; strong?: boolean }[] }[] = [
+    {
+      label: 'Cash In',
+      tone: 'text-green-700 bg-green-50 border-green-500',
+      cols: [
+        { key: 'income', label: 'Daraz' },
+        { key: 'loanIn', label: 'Loan Received' },
+        { key: 'totalCashIn', label: 'Total', strong: true },
+      ],
+    },
+    {
+      label: 'Expenses',
+      tone: 'text-red-700 bg-red-50 border-red-500',
+      cols: [
+        { key: 'rent', label: 'Rent' },
+        { key: 'staff', label: 'Staff' },
+        { key: 'admin', label: 'Admin' },
+        { key: 'operating', label: 'Operating' },
+        { key: 'misc', label: 'Misc' },
+        { key: 'refund', label: 'Refunds' },
+        { key: 'supplierPayment', label: 'Supplier' },
+        { key: 'loanPayment', label: 'Loan Repaid' },
+        { key: 'totalExpense', label: 'Total', strong: true },
+      ],
+    },
+    {
+      label: 'Result',
+      tone: 'text-zinc-700 bg-zinc-100 border-zinc-700',
+      cols: [{ key: 'balance', label: 'Remaining Balance', strong: true }],
+    },
+  ]
+
+  const breakdownTotals = monthlyRows.reduce(
+    (acc, r) => {
+      ;(Object.keys(acc) as BreakdownKey[]).forEach((k) => { acc[k] += r[k] })
+      return acc
+    },
+    {
+      income: 0, loanIn: 0, totalCashIn: 0, rent: 0, staff: 0, admin: 0, operating: 0,
+      misc: 0, refund: 0, supplierPayment: 0, loanPayment: 0, totalExpense: 0, balance: 0,
+    } as Record<BreakdownKey, number>
+  )
+
+  function breakdownCell(key: BreakdownKey, value: number, strong?: boolean) {
+
+    if (key === 'balance') {
+
+      return (
+        <span className={`inline-block rounded-lg px-3 py-1 font-bold ${value >= 0 ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>
+          {value < 0 ? '−' : ''}Rs. {Math.abs(value).toLocaleString('en-IN')}
+        </span>
+      )
+
+    }
+
+    if (value === 0) return <span className="text-zinc-300">—</span>
+
+    const color =
+      key === 'income' || key === 'loanIn' || key === 'totalCashIn'
+        ? 'text-green-700'
+        : key === 'totalExpense'
+          ? 'text-red-700'
+          : 'text-zinc-700'
+
+    return (
+      <span className={`${color} ${strong ? 'font-semibold' : ''}`}>
+        Rs. {value.toLocaleString('en-IN')}
+      </span>
+    )
+
+  }
 
   function exportReport() {
 
@@ -392,6 +506,8 @@ export default function FinanceReportPage() {
     const rows = monthlyRowsDesc.map((r) => ({
       Month: monthLabel(r.month),
       'Daraz Cash In': r.income,
+      'Loan Received': r.loanIn,
+      'Total Cash In': r.totalCashIn,
       Rent: r.rent,
       'Staff Salary': r.staff,
       'Admin Finance': r.admin,
@@ -401,7 +517,7 @@ export default function FinanceReportPage() {
       'Supplier Payment': r.supplierPayment,
       'Loan Payment': r.loanPayment,
       'Total Expenses': r.totalExpense,
-      'Net Profit': r.netProfit,
+      'Remaining Balance': r.balance,
     }))
 
     const worksheet = XLSX.utils.json_to_sheet(rows)
@@ -423,21 +539,38 @@ export default function FinanceReportPage() {
 
     <div className="text-black">
 
-      <div className="max-w-7xl mx-auto space-y-6">
+      <div className="w-full space-y-6">
+
+        <div className="sticky top-0 z-40 -mx-4 -mt-4 lg:-mx-6 lg:-mt-6 px-4 lg:px-6 py-3 bg-[#F1F2FB]/90 backdrop-blur border-b border-zinc-200 flex items-center gap-4">
+
+          <button
+            onClick={() => router.push('/')}
+            className="inline-flex items-center gap-2 bg-white border border-zinc-300 text-zinc-800 hover:bg-zinc-900 hover:text-white hover:border-zinc-900 transition-colors px-4 py-2 rounded-xl text-sm font-semibold shadow-sm"
+          >
+
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="w-4 h-4">
+              <path d="M15 6l-6 6 6 6" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+
+            Back to Dashboard
+
+          </button>
+
+          <h1 className="text-xl font-bold tracking-tight text-zinc-900">
+
+            Finance Report
+
+          </h1>
+
+        </div>
 
         <div className="flex items-center justify-between flex-wrap gap-3">
 
           <div>
 
-            <h1 className="text-3xl font-bold tracking-tight text-zinc-900">
+            <p className="text-sm text-zinc-500">
 
-              Finance Report
-
-            </h1>
-
-            <p className="text-sm text-zinc-500 mt-1">
-
-              Net profit = Daraz Cash In − (Rent + Staff + Admin Finance + Operating Expenses + Misc Expenses + Refunds + Supplier Payment + Loan Payment)
+              Remaining balance = (Daraz Cash In + Loan Received) − (Rent + Staff + Admin Finance + Operating Expenses + Misc Expenses + Refunds + Supplier Payment + Loan Payment)
 
             </p>
 
@@ -498,7 +631,7 @@ export default function FinanceReportPage() {
 
           <div className="bg-white rounded-2xl shadow-sm border border-zinc-200 border-l-4 border-l-green-600 px-6 py-4">
 
-            <p className="text-sm text-zinc-500">Total Income (Lifetime)</p>
+            <p className="text-sm text-zinc-500">Total Cash In (Daraz + Loan, Lifetime)</p>
             <h2 className="text-2xl font-bold tracking-tight mt-1 tabular-nums text-green-600">Rs. {lifetimeIncome.toLocaleString('en-IN')}</h2>
 
           </div>
@@ -512,9 +645,9 @@ export default function FinanceReportPage() {
 
           <div className="bg-white rounded-2xl shadow-sm border border-zinc-200 border-l-4 border-l-zinc-900 px-6 py-4">
 
-            <p className="text-sm text-zinc-500">Net Profit (Lifetime)</p>
-            <h2 className={`text-2xl font-bold tracking-tight mt-1 tabular-nums ${lifetimeNetProfit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-              Rs. {lifetimeNetProfit.toLocaleString('en-IN')}
+            <p className="text-sm text-zinc-500">Remaining Balance (Lifetime)</p>
+            <h2 className={`text-2xl font-bold tracking-tight mt-1 tabular-nums ${lifetimeBalance >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+              Rs. {lifetimeBalance.toLocaleString('en-IN')}
             </h2>
 
           </div>
@@ -523,7 +656,7 @@ export default function FinanceReportPage() {
 
         <div className="bg-white rounded-[28px] shadow-xl border border-zinc-200 p-6">
 
-          <h3 className="font-bold text-lg text-zinc-900 mb-1">Income vs Expense vs Net Profit</h3>
+          <h3 className="font-bold text-lg text-zinc-900 mb-1">Cash In vs Expense vs Remaining Balance</h3>
           <p className="text-xs text-zinc-400 mb-4">Every month with recorded activity</p>
 
           {loading ? (
@@ -577,51 +710,65 @@ export default function FinanceReportPage() {
 
           ) : (
 
-            <div className="overflow-x-auto">
+            <div className="overflow-x-auto rounded-2xl border border-zinc-200">
 
-              <table className="w-full border-collapse text-sm">
+              <table className="w-full min-w-[1280px] border-separate border-spacing-0 text-sm">
 
                 <thead>
 
-                  <tr className="text-left">
+                  <tr>
 
-                    <th className="pb-3 pr-4 text-sm font-medium text-zinc-500">Month</th>
-                    <th className="pb-3 pr-4 text-sm font-medium text-zinc-500 text-right">Daraz Cash In</th>
-                    <th className="pb-3 pr-4 text-sm font-medium text-zinc-500 text-right">Rent</th>
-                    <th className="pb-3 pr-4 text-sm font-medium text-zinc-500 text-right">Staff</th>
-                    <th className="pb-3 pr-4 text-sm font-medium text-zinc-500 text-right">Admin</th>
-                    <th className="pb-3 pr-4 text-sm font-medium text-zinc-500 text-right">Operating</th>
-                    <th className="pb-3 pr-4 text-sm font-medium text-zinc-500 text-right">Misc</th>
-                    <th className="pb-3 pr-4 text-sm font-medium text-zinc-500 text-right">Refunds</th>
-                    <th className="pb-3 pr-4 text-sm font-medium text-zinc-500 text-right">Supplier Payment</th>
-                    <th className="pb-3 pr-4 text-sm font-medium text-zinc-500 text-right">Loan Payment</th>
-                    <th className="pb-3 pr-4 text-sm font-medium text-zinc-500 text-right">Total Expenses</th>
-                    <th className="pb-3 text-sm font-medium text-zinc-500 text-right">Net Profit</th>
+                    <th rowSpan={2} className="sticky left-0 z-10 bg-white px-4 text-left align-bottom pb-3 text-xs font-semibold uppercase tracking-wide text-zinc-500 border-b border-zinc-200">Month</th>
+
+                    {breakdownGroups.map((g) => (
+                      <th
+                        key={g.label}
+                        colSpan={g.cols.length}
+                        className={`px-4 py-2 text-center text-xs font-bold uppercase tracking-wider border-t-2 border-l border-zinc-200 ${g.tone}`}
+                      >
+                        {g.label}
+                      </th>
+                    ))}
+
+                  </tr>
+
+                  <tr>
+
+                    {breakdownGroups.map((g) =>
+                      g.cols.map((c, i) => (
+                        <th
+                          key={c.key}
+                          className={`px-4 py-2.5 text-right text-xs font-semibold uppercase tracking-wide text-zinc-500 whitespace-nowrap bg-zinc-50 border-b border-zinc-200 ${i === 0 ? 'border-l' : ''}`}
+                        >
+                          {c.label}
+                        </th>
+                      ))
+                    )}
 
                   </tr>
 
                 </thead>
 
-                <tbody className="divide-y divide-zinc-100">
+                <tbody>
 
                   {monthlyRowsDesc.map((r) => (
 
-                    <tr key={r.month}>
+                    <tr key={r.month} className="group hover:bg-zinc-50/70">
 
-                      <td className="py-3 pr-4 font-semibold text-zinc-900 whitespace-nowrap">{monthLabel(r.month)}</td>
-                      <td className="py-3 pr-4 text-right tabular-nums text-green-600">Rs. {r.income.toLocaleString('en-IN')}</td>
-                      <td className="py-3 pr-4 text-right tabular-nums text-zinc-600">Rs. {r.rent.toLocaleString('en-IN')}</td>
-                      <td className="py-3 pr-4 text-right tabular-nums text-zinc-600">Rs. {r.staff.toLocaleString('en-IN')}</td>
-                      <td className="py-3 pr-4 text-right tabular-nums text-zinc-600">Rs. {r.admin.toLocaleString('en-IN')}</td>
-                      <td className="py-3 pr-4 text-right tabular-nums text-zinc-600">Rs. {r.operating.toLocaleString('en-IN')}</td>
-                      <td className="py-3 pr-4 text-right tabular-nums text-zinc-600">Rs. {r.misc.toLocaleString('en-IN')}</td>
-                      <td className="py-3 pr-4 text-right tabular-nums text-zinc-600">Rs. {r.refund.toLocaleString('en-IN')}</td>
-                      <td className="py-3 pr-4 text-right tabular-nums text-zinc-600">Rs. {r.supplierPayment.toLocaleString('en-IN')}</td>
-                      <td className="py-3 pr-4 text-right tabular-nums text-zinc-600">Rs. {r.loanPayment.toLocaleString('en-IN')}</td>
-                      <td className="py-3 pr-4 text-right tabular-nums font-semibold text-red-600">Rs. {r.totalExpense.toLocaleString('en-IN')}</td>
-                      <td className={`py-3 text-right tabular-nums font-bold ${r.netProfit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                        Rs. {r.netProfit.toLocaleString('en-IN')}
+                      <td className="sticky left-0 z-10 bg-white group-hover:bg-zinc-50 px-4 py-3.5 font-semibold text-zinc-900 whitespace-nowrap border-b border-zinc-100">
+                        {monthLabel(r.month)}
                       </td>
+
+                      {breakdownGroups.map((g) =>
+                        g.cols.map((c, i) => (
+                          <td
+                            key={c.key}
+                            className={`px-4 py-3.5 text-right tabular-nums whitespace-nowrap border-b border-zinc-100 ${i === 0 ? 'border-l border-l-zinc-100' : ''}`}
+                          >
+                            {breakdownCell(c.key, r[c.key], c.strong)}
+                          </td>
+                        ))
+                      )}
 
                     </tr>
 
@@ -631,22 +778,20 @@ export default function FinanceReportPage() {
 
                 <tfoot>
 
-                  <tr className="border-t-2 border-zinc-200 font-bold text-zinc-900">
+                  <tr className="bg-zinc-50 font-bold">
 
-                    <td className="pt-3 pr-4">Total</td>
-                    <td className="pt-3 pr-4 text-right tabular-nums text-green-600">Rs. {lifetimeIncome.toLocaleString('en-IN')}</td>
-                    <td className="pt-3 pr-4 text-right tabular-nums">Rs. {monthlyRows.reduce((s, r) => s + r.rent, 0).toLocaleString('en-IN')}</td>
-                    <td className="pt-3 pr-4 text-right tabular-nums">Rs. {monthlyRows.reduce((s, r) => s + r.staff, 0).toLocaleString('en-IN')}</td>
-                    <td className="pt-3 pr-4 text-right tabular-nums">Rs. {monthlyRows.reduce((s, r) => s + r.admin, 0).toLocaleString('en-IN')}</td>
-                    <td className="pt-3 pr-4 text-right tabular-nums">Rs. {monthlyRows.reduce((s, r) => s + r.operating, 0).toLocaleString('en-IN')}</td>
-                    <td className="pt-3 pr-4 text-right tabular-nums">Rs. {monthlyRows.reduce((s, r) => s + r.misc, 0).toLocaleString('en-IN')}</td>
-                    <td className="pt-3 pr-4 text-right tabular-nums">Rs. {monthlyRows.reduce((s, r) => s + r.refund, 0).toLocaleString('en-IN')}</td>
-                    <td className="pt-3 pr-4 text-right tabular-nums">Rs. {monthlyRows.reduce((s, r) => s + r.supplierPayment, 0).toLocaleString('en-IN')}</td>
-                    <td className="pt-3 pr-4 text-right tabular-nums">Rs. {lifetimeLoanPayment.toLocaleString('en-IN')}</td>
-                    <td className="pt-3 pr-4 text-right tabular-nums text-red-600">Rs. {lifetimeExpense.toLocaleString('en-IN')}</td>
-                    <td className={`pt-3 text-right tabular-nums ${lifetimeNetProfit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                      Rs. {lifetimeNetProfit.toLocaleString('en-IN')}
-                    </td>
+                    <td className="sticky left-0 z-10 bg-zinc-50 px-4 py-4 text-zinc-900 border-t-2 border-zinc-300">Total</td>
+
+                    {breakdownGroups.map((g) =>
+                      g.cols.map((c, i) => (
+                        <td
+                          key={c.key}
+                          className={`px-4 py-4 text-right tabular-nums whitespace-nowrap border-t-2 border-zinc-300 ${i === 0 ? 'border-l border-l-zinc-200' : ''}`}
+                        >
+                          {breakdownCell(c.key, breakdownTotals[c.key], true)}
+                        </td>
+                      ))
+                    )}
 
                   </tr>
 
@@ -668,9 +813,11 @@ export default function FinanceReportPage() {
           ref={printRef}
           month={reportMonth}
           monthLabel={monthLabel(reportMonth)}
-          totalCashIn={reportRow.income}
+          totalCashIn={reportRow.totalCashIn}
+          darazCashIn={reportRow.income}
+          loanReceived={reportRow.loanIn}
           totalExpenditure={reportRow.totalExpense}
-          netProfit={reportRow.netProfit}
+          remainingBalance={reportRow.balance}
           expenseBreakdown={reportExpenseBreakdown}
           storeWeeklyEarnings={storeWeeklyEarnings}
           totalStockValue={totalStockValue}

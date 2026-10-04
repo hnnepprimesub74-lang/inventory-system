@@ -19,7 +19,7 @@ export default function PieChart({ data, size = 220, formatValue }: PieChartProp
   const [hoverIndex, setHoverIndex] = useState<number | null>(null)
 
   const total = data.reduce((s, d) => s + d.value, 0)
-  const slices = data.filter((d) => d.value > 0)
+  const slices = data.filter((d) => d.value > 0).sort((a, b) => b.value - a.value)
 
   const radius = size / 2
   const center = radius
@@ -57,12 +57,14 @@ export default function PieChart({ data, size = 220, formatValue }: PieChartProp
   })
 
   const format = formatValue || ((v: number) => 'Rs. ' + v.toLocaleString('en-IN'))
+  const hovered = hoverIndex !== null ? arcs[hoverIndex] : null
+  const showBars = size >= 200
 
   return (
 
-    <div className="flex flex-wrap items-center gap-6">
+    <div className="flex flex-wrap items-center gap-x-10 gap-y-6">
 
-      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
+      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} className="flex-shrink-0">
 
         {arcs.length === 0 ? (
 
@@ -76,9 +78,10 @@ export default function PieChart({ data, size = 220, formatValue }: PieChartProp
               key={a.label}
               d={a.path}
               fill={a.color}
-              opacity={hoverIndex === null || hoverIndex === i ? 1 : 0.35}
+              opacity={hoverIndex === null || hoverIndex === i ? 1 : 0.3}
               stroke="#fff"
-              strokeWidth={1}
+              strokeWidth={2}
+              style={{ transition: 'opacity 150ms' }}
               onMouseEnter={() => setHoverIndex(i)}
               onMouseLeave={() => setHoverIndex(null)}
             />
@@ -87,9 +90,27 @@ export default function PieChart({ data, size = 220, formatValue }: PieChartProp
 
         )}
 
+        {arcs.length > 0 && (
+
+          <>
+
+            <circle cx={center} cy={center} r={radius * 0.62} fill="#fff" pointerEvents="none" />
+
+            <text x={center} y={center - size * 0.04} textAnchor="middle" fontSize={size * 0.055} fill="#A1A1AA" pointerEvents="none">
+              {hovered ? hovered.label : 'Total'}
+            </text>
+
+            <text x={center} y={center + size * 0.065} textAnchor="middle" fontSize={size * 0.075} fontWeight={700} fill="#18181B" pointerEvents="none">
+              {format(hovered ? hovered.value : total)}
+            </text>
+
+          </>
+
+        )}
+
       </svg>
 
-      <div className="space-y-2 min-w-[180px]">
+      <div className={`space-y-1 flex-1 ${showBars ? 'min-w-[320px] max-w-2xl' : 'min-w-[180px]'}`}>
 
         {arcs.length === 0 ? (
 
@@ -101,25 +122,26 @@ export default function PieChart({ data, size = 220, formatValue }: PieChartProp
 
             <div
               key={a.label}
-              className="flex items-center justify-between gap-3 text-sm cursor-default"
+              className={`flex items-center gap-3 text-sm cursor-default rounded-lg ${showBars ? 'px-3 py-2' : 'py-0.5'} ${hoverIndex === i ? 'bg-zinc-50' : ''}`}
               onMouseEnter={() => setHoverIndex(i)}
               onMouseLeave={() => setHoverIndex(null)}
-              style={{ opacity: hoverIndex === null || hoverIndex === i ? 1 : 0.5 }}
+              style={{ opacity: hoverIndex === null || hoverIndex === i ? 1 : 0.5, transition: 'opacity 150ms' }}
             >
 
-              <div className="flex items-center gap-2 min-w-0">
+              <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: a.color }} />
 
-                <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: a.color }} />
-                <span className="text-zinc-600 truncate">{a.label}</span>
+              <span className={`text-zinc-600 truncate ${showBars ? 'w-40' : 'flex-1'}`}>{a.label}</span>
 
-              </div>
+              {showBars && (
 
-              <div className="text-right flex-shrink-0">
+                <div className="flex-1 h-2 rounded-full bg-zinc-100 overflow-hidden">
+                  <div className="h-full rounded-full" style={{ width: `${a.fraction * 100}%`, backgroundColor: a.color }} />
+                </div>
 
-                <span className="font-semibold text-zinc-900 tabular-nums">{format(a.value)}</span>
-                <span className="text-zinc-400 ml-1.5 tabular-nums">{(a.fraction * 100).toFixed(1)}%</span>
+              )}
 
-              </div>
+              <span className={`font-semibold text-zinc-900 tabular-nums text-right whitespace-nowrap ${showBars ? 'w-28' : ''}`}>{format(a.value)}</span>
+              <span className="text-zinc-400 tabular-nums text-right w-12">{(a.fraction * 100).toFixed(1)}%</span>
 
             </div>
 

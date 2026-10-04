@@ -109,6 +109,8 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     return <>{children}</>
   }
 
+  const fullScreen = pathname === '/finance-report'
+
   return (
 
     <ViewerProvider isViewer={isViewer} role={role}>
@@ -119,30 +121,38 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         onTouchEnd={handleTouchEnd}
       >
 
-        <button
-          onClick={() => setMobileMenuOpen(true)}
-          className="lg:hidden fixed top-4 left-4 z-30 w-11 h-11 rounded-xl bg-white shadow-md border border-zinc-200 flex items-center justify-center text-zinc-600"
-          aria-label="Open menu"
-        >
+        {!fullScreen && (
 
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-5 h-5">
-            <path d="M4 7h16M4 12h16M4 17h16" strokeLinecap="round" />
-          </svg>
+          <button
+            onClick={() => setMobileMenuOpen(true)}
+            className="lg:hidden fixed top-4 left-4 z-30 w-11 h-11 rounded-xl bg-white shadow-md border border-zinc-200 flex items-center justify-center text-zinc-600"
+            aria-label="Open menu"
+          >
 
-        </button>
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-5 h-5">
+              <path d="M4 7h16M4 12h16M4 17h16" strokeLinecap="round" />
+            </svg>
 
-        <div className="max-w-[1600px] mx-auto flex flex-col lg:flex-row gap-6 items-start">
+          </button>
 
-          <Sidebar
-            userEmail={userEmail}
-            totalInventoryCost={totalInventoryCost}
-            isViewer={isViewer}
-            role={role}
-            mobileOpen={mobileMenuOpen}
-            onClose={() => setMobileMenuOpen(false)}
-          />
+        )}
 
-          <main className="flex-1 min-w-0 w-full pt-14 lg:pt-0">
+        <div className={`${fullScreen ? 'w-full' : 'max-w-[1600px] mx-auto'} flex flex-col lg:flex-row gap-6 items-start`}>
+
+          {!fullScreen && (
+
+            <Sidebar
+              userEmail={userEmail}
+              totalInventoryCost={totalInventoryCost}
+              isViewer={isViewer}
+              role={role}
+              mobileOpen={mobileMenuOpen}
+              onClose={() => setMobileMenuOpen(false)}
+            />
+
+          )}
+
+          <main className={`flex-1 min-w-0 w-full ${fullScreen ? '' : 'pt-14 lg:pt-0'}`}>
 
             {children}
 

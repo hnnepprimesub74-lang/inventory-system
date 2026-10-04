@@ -13,8 +13,10 @@ type MonthlyReportPrintProps = {
   month: string
   monthLabel: string
   totalCashIn: number
+  darazCashIn: number
+  loanReceived: number
   totalExpenditure: number
-  netProfit: number
+  remainingBalance: number
   expenseBreakdown: ExpenseSlice[]
   storeWeeklyEarnings: StoreWeek[]
   totalStockValue: number
@@ -74,8 +76,10 @@ const MonthlyReportPrint = forwardRef<HTMLDivElement, MonthlyReportPrintProps>(f
     month,
     monthLabel,
     totalCashIn,
+    darazCashIn,
+    loanReceived,
     totalExpenditure,
-    netProfit,
+    remainingBalance,
     expenseBreakdown,
     storeWeeklyEarnings,
     totalStockValue,
@@ -129,6 +133,7 @@ const MonthlyReportPrint = forwardRef<HTMLDivElement, MonthlyReportPrintProps>(f
           <div className="rounded-2xl border border-zinc-200 p-4 border-l-4 border-l-green-600">
             <p className="text-xs text-zinc-500">Total Cash In</p>
             <p className="text-xl font-bold tabular-nums text-green-700 mt-1">{rs(totalCashIn)}</p>
+            <p className="text-[10px] text-zinc-400 mt-1">Daraz {rs(darazCashIn)} + Loan {rs(loanReceived)}</p>
           </div>
 
           <div className="rounded-2xl border border-zinc-200 p-4 border-l-4 border-l-red-500">
@@ -137,8 +142,8 @@ const MonthlyReportPrint = forwardRef<HTMLDivElement, MonthlyReportPrintProps>(f
           </div>
 
           <div className="rounded-2xl border border-zinc-200 p-4 border-l-4 border-l-zinc-900">
-            <p className="text-xs text-zinc-500">Net Profit</p>
-            <p className={`text-xl font-bold tabular-nums mt-1 ${netProfit >= 0 ? 'text-green-700' : 'text-red-700'}`}>{rs(netProfit)}</p>
+            <p className="text-xs text-zinc-500">Remaining Balance</p>
+            <p className={`text-xl font-bold tabular-nums mt-1 ${remainingBalance >= 0 ? 'text-green-700' : 'text-red-700'}`}>{rs(remainingBalance)}</p>
           </div>
 
           <div className="rounded-2xl border border-zinc-200 p-4 border-l-4 border-l-indigo-600">
