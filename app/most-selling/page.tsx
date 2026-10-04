@@ -3,15 +3,87 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '../../lib/supabase'
+import { fetchAll } from '../../lib/fetchAll'
 import * as XLSX from 'xlsx'
 import { saveAs } from 'file-saver'
+
+type Period = 'week' | 'month' | 'lifetime' | 'range'
+
+const PERIODS: { key: Period; label: string }[] = [
+  { key: 'week', label: 'Week' },
+  { key: 'month', label: 'Month' },
+  { key: 'lifetime', label: 'Lifetime' },
+  { key: 'range', label: 'Range' },
+]
+
+function toISODate(d: Date) {
+
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+
+  return `${d.getFullYear()}-${m}-${day}`
+
+}
+
+const RANGE_PRESETS: { label: string; get: () => [string, string] }[] = [
+  {
+    label: 'Today',
+    get: () => {
+      const t = toISODate(new Date())
+      return [t, t]
+    },
+  },
+  {
+    label: 'Yesterday',
+    get: () => {
+      const d = new Date()
+      d.setDate(d.getDate() - 1)
+      const t = toISODate(d)
+      return [t, t]
+    },
+  },
+  {
+    label: 'This month',
+    get: () => {
+      const n = new Date()
+      return [toISODate(new Date(n.getFullYear(), n.getMonth(), 1)), toISODate(n)]
+    },
+  },
+  {
+    label: 'Last month',
+    get: () => {
+      const n = new Date()
+      return [
+        toISODate(new Date(n.getFullYear(), n.getMonth() - 1, 1)),
+        toISODate(new Date(n.getFullYear(), n.getMonth(), 0)),
+      ]
+    },
+  },
+]
+
+function CalendarIcon() {
+
+  return (
+
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="w-4 h-4 text-zinc-400 flex-shrink-0">
+      <rect x="3" y="5" width="18" height="16" rx="2" />
+      <path d="M3 10h18M8 3v4M16 3v4" strokeLinecap="round" />
+    </svg>
+
+  )
+
+}
 
 export default function MostSellingPage() {
 
   const router = useRouter()
 
   const [products, setProducts] = useState<any[]>([])
+  const [sales, setSales] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
+  const [period, setPeriod] = useState<Period>('month')
+  const [rangeFrom, setRangeFrom] = useState('')
+  const [rangeTo, setRangeTo] = useState('')
 
   useEffect(() => {
 
@@ -41,46 +113,87 @@ export default function MostSellingPage() {
     const { data: productsData } =
       await supabase.from('products').select('*')
 
-    const thirtyDaysAgo = new Date()
-    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
-
-    const { data: salesData } =
-      await supabase
+    const salesData = await fetchAll(() =>
+      supabase
         .from('stock_transactions')
-        .select('*')
+        .select('product_id, quantity, created_at')
         .eq('transaction_type', 'SELL')
-        .gte('created_at', thirtyDaysAgo.toISOString())
+        .order('created_at', { ascending: false })
+    )
 
-    const salesMap: any = {}
-
-    ;(salesData || []).forEach((sale: any) => {
-
-      salesMap[sale.product_id] =
-        (salesMap[sale.product_id] || 0) + Number(sale.quantity || 0)
-
-    })
-
-    const ranked = (productsData || [])
-      .map((product: any) => ({
-        ...product,
-        sold: salesMap[product.id] || 0,
-      }))
-      .sort((a: any, b: any) => b.sold - a.sold)
-
-    setProducts(ranked)
+    setProducts(productsData || [])
+    setSales(salesData)
     setLoading(false)
 
   }
 
-  const sellingProducts = products.filter((p) => p.sold > 0)
+  function periodBounds(): { start: Date | null; end: Date | null } {
+
+    const now = new Date()
+
+    if (period === 'week' || period === 'month') {
+
+      const start = new Date(now)
+      start.setDate(start.getDate() - (period === 'week' ? 7 : 30))
+      return { start, end: null }
+
+    }
+
+    if (period === 'range') {
+
+      return {
+        start: rangeFrom ? new Date(`${rangeFrom}T00:00:00`) : null,
+        end: rangeTo ? new Date(`${rangeTo}T23:59:59.999`) : null,
+      }
+
+    }
+
+    return { start: null, end: null }
+
+  }
+
+  const { start: periodStart, end: periodEnd } = periodBounds()
+
+  const salesMap: Record<string, number> = {}
+
+  sales.forEach((sale: any) => {
+
+    const soldAt = new Date(sale.created_at)
+
+    if (periodStart && soldAt < periodStart) return
+    if (periodEnd && soldAt > periodEnd) return
+
+    salesMap[sale.product_id] = (salesMap[sale.product_id] || 0) + Number(sale.quantity || 0)
+
+  })
+
+  const sellingProducts = products
+    .map((product: any) => ({ ...product, sold: salesMap[product.id] || 0 }))
+    .filter((p) => p.sold > 0)
+    .sort((a, b) => b.sold - a.sold)
+
   const totalUnitsSold = sellingProducts.reduce((s, p) => s + p.sold, 0)
   const topSeller = sellingProducts[0]
+
+  const periodLabel =
+    period === 'week'
+      ? 'last 7 days'
+      : period === 'month'
+      ? 'last 30 days'
+      : period === 'lifetime'
+      ? 'lifetime'
+      : rangeFrom || rangeTo
+      ? `${rangeFrom || 'start'} to ${rangeTo || 'today'}`
+      : 'all time'
+
+  const soldHeader =
+    period === 'week' ? 'Sold (7d)' : period === 'month' ? 'Sold (30d)' : period === 'lifetime' ? 'Lifetime Sold' : 'Sold'
 
   function exportToExcel() {
 
     if (sellingProducts.length === 0) {
 
-      alert('No sales in the last 30 days')
+      alert(`No sales for ${periodLabel}`)
       return
 
     }
@@ -92,7 +205,7 @@ export default function MostSellingPage() {
       Brand: p.brand,
       Shade: p.shade,
       Weight: p.weight,
-      'Sold (30d)': p.sold,
+      [soldHeader]: p.sold,
       'Current Stock': p.current_stock,
     }))
 
@@ -148,7 +261,7 @@ export default function MostSellingPage() {
 
             <p className="text-sm text-zinc-500 mt-1">
 
-              Ranked by units sold in the last 30 days
+              Ranked by units sold — {periodLabel}
 
             </p>
 
@@ -171,11 +284,130 @@ export default function MostSellingPage() {
 
         </div>
 
+        <div className="flex items-center gap-3 flex-wrap">
+
+          <div className="flex gap-1 bg-zinc-100 p-1 rounded-xl">
+
+            {PERIODS.map((p) => (
+
+              <button
+                key={p.key}
+                type="button"
+                onClick={() => setPeriod(p.key)}
+                className={`px-4 py-1.5 rounded-lg text-sm font-semibold transition-colors ${
+                  period === p.key ? 'bg-white text-indigo-600 shadow-sm' : 'text-zinc-500 hover:text-zinc-800'
+                }`}
+              >
+
+                {p.label}
+
+              </button>
+
+            ))}
+
+          </div>
+
+        </div>
+
+        {period === 'range' && (
+
+          <div className="bg-white border border-zinc-200 rounded-2xl shadow-sm p-4 space-y-3">
+
+            <div className="flex items-end gap-3 flex-wrap">
+
+              <label className="flex flex-col gap-1 flex-1 min-w-[140px]">
+
+                <span className="text-[11px] font-semibold uppercase tracking-wide text-zinc-400">From</span>
+
+                <div className="flex items-center gap-2 border border-zinc-200 bg-zinc-50 focus-within:bg-white focus-within:border-indigo-400 focus-within:ring-2 focus-within:ring-indigo-100 rounded-xl px-3 py-2 transition-colors">
+
+                  <CalendarIcon />
+
+                  <input
+                    type="date"
+                    value={rangeFrom}
+                    max={rangeTo || undefined}
+                    onChange={(e) => setRangeFrom(e.target.value)}
+                    className="w-full bg-transparent outline-none text-sm font-medium text-zinc-800"
+                  />
+
+                </div>
+
+              </label>
+
+              <span className="pb-2.5 text-zinc-300 hidden sm:block">→</span>
+
+              <label className="flex flex-col gap-1 flex-1 min-w-[140px]">
+
+                <span className="text-[11px] font-semibold uppercase tracking-wide text-zinc-400">To</span>
+
+                <div className="flex items-center gap-2 border border-zinc-200 bg-zinc-50 focus-within:bg-white focus-within:border-indigo-400 focus-within:ring-2 focus-within:ring-indigo-100 rounded-xl px-3 py-2 transition-colors">
+
+                  <CalendarIcon />
+
+                  <input
+                    type="date"
+                    value={rangeTo}
+                    min={rangeFrom || undefined}
+                    onChange={(e) => setRangeTo(e.target.value)}
+                    className="w-full bg-transparent outline-none text-sm font-medium text-zinc-800"
+                  />
+
+                </div>
+
+              </label>
+
+            </div>
+
+            <div className="flex items-center gap-2 flex-wrap">
+
+              {RANGE_PRESETS.map((preset) => (
+
+                <button
+                  key={preset.label}
+                  type="button"
+                  onClick={() => {
+                    const [from, to] = preset.get()
+                    setRangeFrom(from)
+                    setRangeTo(to)
+                  }}
+                  className="px-3 py-1 rounded-full text-xs font-semibold bg-zinc-100 text-zinc-600 hover:bg-indigo-50 hover:text-indigo-600 transition-colors"
+                >
+
+                  {preset.label}
+
+                </button>
+
+              ))}
+
+              {(rangeFrom || rangeTo) && (
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setRangeFrom('')
+                    setRangeTo('')
+                  }}
+                  className="px-3 py-1 rounded-full text-xs font-semibold text-zinc-400 hover:text-red-600 transition-colors"
+                >
+
+                  Clear
+
+                </button>
+
+              )}
+
+            </div>
+
+          </div>
+
+        )}
+
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
 
           <div className="relative overflow-hidden bg-gradient-to-br from-indigo-600 to-indigo-700 rounded-2xl shadow-sm px-6 py-5 text-white">
 
-            <p className="text-sm text-indigo-100">Units Sold (30d)</p>
+            <p className="text-sm text-indigo-100">Units Sold ({periodLabel})</p>
             <h2 className="text-4xl font-bold tracking-tight mt-1 tabular-nums">{totalUnitsSold.toLocaleString('en-IN')}</h2>
 
           </div>
@@ -209,7 +441,7 @@ export default function MostSellingPage() {
 
           ) : sellingProducts.length === 0 ? (
 
-            <p className="text-zinc-500">No sales in the last 30 days.</p>
+            <p className="text-zinc-500">No sales for {periodLabel}.</p>
 
           ) : (
 
@@ -227,7 +459,7 @@ export default function MostSellingPage() {
                     <th className="pb-3 pr-4 text-xs font-semibold uppercase tracking-wide text-zinc-400">Brand</th>
                     <th className="pb-3 pr-4 text-xs font-semibold uppercase tracking-wide text-zinc-400">Shade</th>
                     <th className="pb-3 pr-4 text-xs font-semibold uppercase tracking-wide text-zinc-400">Weight</th>
-                    <th className="pb-3 pr-4 text-xs font-semibold uppercase tracking-wide text-zinc-400 text-right">Sold (30d)</th>
+                    <th className="pb-3 pr-4 text-xs font-semibold uppercase tracking-wide text-zinc-400 text-right">{soldHeader}</th>
                     <th className="pb-3 text-xs font-semibold uppercase tracking-wide text-zinc-400 text-right">Current Stock</th>
 
                   </tr>

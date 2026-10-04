@@ -3,12 +3,15 @@
 import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '../../lib/supabase'
+import { fetchAll } from '../../lib/fetchAll'
 import * as XLSX from 'xlsx'
 import { saveAs } from 'file-saver'
 import { savePurchaseOrderDraft } from '../../lib/purchaseOrderDraft'
 
-const SALES_WINDOW_DAYS = 7
+const SALES_WINDOW_DAYS = 60
+const REORDER_DIVISOR = 4
 const MIN_FLOOR = 2
+const GRID_COLS = 'sm:grid-cols-[24px_1fr_110px_110px_110px_130px]'
 
 function groupKey(p: any) {
 
@@ -91,29 +94,29 @@ export default function LowStockPage() {
     const { data: productsData } =
       await supabase.from('products').select('*')
 
-    const thirtyDaysAgo = new Date()
-    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
-
-    const { data: salesData } =
-      await supabase
+    const salesData = await fetchAll(() =>
+      supabase
         .from('stock_transactions')
-        .select('*')
+        .select('product_id, quantity, created_at')
         .eq('transaction_type', 'SELL')
-        .gte('created_at', thirtyDaysAgo.toISOString())
+        .order('created_at', { ascending: false })
+    )
 
     const salesWindowAgo = new Date()
     salesWindowAgo.setDate(salesWindowAgo.getDate() - SALES_WINDOW_DAYS)
 
-    const recentSalesMap: any = {}
+    const lifetimeMap: Record<string, number> = {}
+    const recentSalesMap: Record<string, number> = {}
 
-    ;(salesData || []).forEach((sale: any) => {
+    salesData.forEach((sale: any) => {
 
-      const soldAt = new Date(sale.created_at)
+      const qty = Number(sale.quantity || 0)
 
-      if (soldAt >= salesWindowAgo) {
+      lifetimeMap[sale.product_id] = (lifetimeMap[sale.product_id] || 0) + qty
 
-        recentSalesMap[sale.product_id] =
-          (recentSalesMap[sale.product_id] || 0) + Number(sale.quantity || 0)
+      if (new Date(sale.created_at) >= salesWindowAgo) {
+
+        recentSalesMap[sale.product_id] = (recentSalesMap[sale.product_id] || 0) + qty
 
       }
 
@@ -121,10 +124,11 @@ export default function LowStockPage() {
 
     const ranked = (productsData || []).map((product: any) => {
 
-      const sold7 = recentSalesMap[product.id] || 0
-      const reorderPoint = Math.max(sold7, MIN_FLOOR)
+      const sold60 = recentSalesMap[product.id] || 0
+      const lifetimeSold = lifetimeMap[product.id] || 0
+      const reorderPoint = Math.max(sold60 / REORDER_DIVISOR, MIN_FLOOR)
 
-      return { ...product, sold7, reorderPoint }
+      return { ...product, sold60, lifetimeSold, reorderPoint }
 
     })
 
@@ -147,7 +151,7 @@ export default function LowStockPage() {
 
   const lowStock = products
     .filter((p) => isLow(p))
-    .sort((a, b) => b.reorderPoint - a.reorderPoint)
+    .sort((a, b) => b.lifetimeSold - a.lifetimeSold)
 
   const outOfStockCount = lowStock.filter((p) => isOut(p)).length
   const lowOnlyCount = lowStock.length - outOfStockCount
@@ -185,11 +189,13 @@ export default function LowStockPage() {
   const groups = Object.values(groupsMap)
     .map((g: any) => {
 
-      const sortedVariants = [...g.variants].sort((a: any, b: any) =>
-        String(a.shade || '').localeCompare(String(b.shade || ''), undefined, {
-          numeric: true,
-          sensitivity: 'base',
-        })
+      const sortedVariants = [...g.variants].sort(
+        (a: any, b: any) =>
+          b.lifetimeSold - a.lifetimeSold ||
+          String(a.shade || '').localeCompare(String(b.shade || ''), undefined, {
+            numeric: true,
+            sensitivity: 'base',
+          })
       )
 
       const matched = sortedVariants.filter((v: any) => {
@@ -206,13 +212,13 @@ export default function LowStockPage() {
 
       const lowCount = sortedVariants.filter((v: any) => isLow(v)).length
       const outCount = sortedVariants.filter((v: any) => isOut(v)).length
-      const maxReorderPoint = Math.max(...sortedVariants.map((v: any) => v.reorderPoint))
+      const totalLifetime = sortedVariants.reduce((s: number, v: any) => s + v.lifetimeSold, 0)
 
-      return { ...g, variants: sortedVariants, matched, others, lowCount, outCount, maxReorderPoint }
+      return { ...g, variants: sortedVariants, matched, others, lowCount, outCount, totalLifetime }
 
     })
     .filter((g: any) => g.matched.length > 0)
-    .sort((a: any, b: any) => b.maxReorderPoint - a.maxReorderPoint)
+    .sort((a: any, b: any) => b.totalLifetime - a.totalLifetime)
 
   const selectedCount = Object.values(selected).filter(Boolean).length
 
@@ -299,6 +305,7 @@ export default function LowStockPage() {
       Brand: p.brand,
       Shade: p.shade,
       'Current Stock': p.current_stock,
+      'Lifetime Sales': p.lifetimeSold,
       'Reorder Point': Math.ceil(p.reorderPoint),
       Status: isOut(p) ? 'Out of Stock' : 'Low Stock',
     }))
@@ -407,11 +414,12 @@ export default function LowStockPage() {
 
             <div className="space-y-4">
 
-              <div className="hidden sm:grid grid-cols-[24px_1fr_140px_140px_140px] items-center gap-4 px-4 text-xs font-semibold text-zinc-400 uppercase tracking-wide">
+              <div className={`hidden sm:grid ${GRID_COLS} items-center gap-4 px-4 text-xs font-semibold text-zinc-400 uppercase tracking-wide`}>
 
                 <span />
                 <span>Product / Shade</span>
                 <span className="text-right">Current Stock</span>
+                <span className="text-right">Lifetime Sales</span>
                 <span className="text-right">Reorder Point</span>
                 <span className="text-center">Status</span>
 
@@ -455,6 +463,10 @@ export default function LowStockPage() {
 
                       <div className="flex items-center gap-2 text-xs flex-shrink-0">
 
+                        <span className="text-zinc-400 font-medium whitespace-nowrap">
+                          {g.totalLifetime} sold
+                        </span>
+
                         {g.outCount > 0 && (
                           <span className="bg-red-100 text-red-700 px-2 py-0.5 rounded-full font-semibold whitespace-nowrap">
                             {g.outCount} out
@@ -481,7 +493,7 @@ export default function LowStockPage() {
 
                           <label
                             key={p.id}
-                            className="flex flex-wrap sm:grid sm:grid-cols-[24px_1fr_140px_140px_140px] items-center gap-x-4 gap-y-2 px-4 py-3.5 hover:bg-zinc-50 cursor-pointer"
+                            className={`flex flex-wrap sm:grid ${GRID_COLS} items-center gap-x-4 gap-y-2 px-4 py-3.5 hover:bg-zinc-50 cursor-pointer`}
                           >
 
                             <div className="flex items-center gap-3 basis-full sm:contents">
@@ -515,6 +527,11 @@ export default function LowStockPage() {
 
                               </span>
 
+                            </span>
+
+                            <span className="text-sm sm:text-base tabular-nums font-semibold text-zinc-700 text-right">
+                              <span className="sm:hidden text-zinc-400 font-medium mr-1">Sold</span>
+                              {p.lifetimeSold}
                             </span>
 
                             <span className="text-sm sm:text-base tabular-nums font-semibold text-zinc-500 text-right">
@@ -585,7 +602,7 @@ export default function LowStockPage() {
 
                                 <label
                                   key={p.id}
-                                  className="flex flex-wrap sm:grid sm:grid-cols-[24px_1fr_140px_140px_140px] items-center gap-x-4 gap-y-2 px-4 py-3.5 hover:bg-zinc-50 cursor-pointer bg-zinc-50/50"
+                                  className={`flex flex-wrap sm:grid ${GRID_COLS} items-center gap-x-4 gap-y-2 px-4 py-3.5 hover:bg-zinc-50 cursor-pointer bg-zinc-50/50`}
                                 >
 
                                   <div className="flex items-center gap-3 basis-full sm:contents">
@@ -611,6 +628,11 @@ export default function LowStockPage() {
                                       {p.current_stock}
                                     </span>
 
+                                  </span>
+
+                                  <span className="text-sm sm:text-base tabular-nums font-semibold text-zinc-500 text-right">
+                                    <span className="sm:hidden font-medium mr-1">Sold</span>
+                                    {p.lifetimeSold}
                                   </span>
 
                                   <span className="text-sm sm:text-base tabular-nums font-semibold text-zinc-400 text-right">
